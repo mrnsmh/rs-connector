@@ -40,6 +40,13 @@ CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS",
 # Node (meme valeur que CREDENTIALS_ENCRYPTION_KEY cote Node). Jamais commitee (vient du .env).
 CREDENTIALS_ENCRYPTION_KEY = os.environ.get("CREDENTIALS_ENCRYPTION_KEY", "")
 
+# Derriere le reverse-proxy (nginx + Cloudflare) : HTTPS detecte via X-Forwarded-Proto ;
+# cookies Secure hors DEBUG.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
+
 
 # Application definition
 
