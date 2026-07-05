@@ -16,3 +16,10 @@ dist/
 # Logs & divers
 *.log
 .DS_Store
+
+# Python / Django
+.venv/
+__pycache__/
+*.pyc
+*.sqlite3
+staticfiles/
