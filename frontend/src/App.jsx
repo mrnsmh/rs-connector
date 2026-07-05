@@ -10,7 +10,7 @@ export default function App() {
 
   // Au chargement : si une session valide (OTP vérifié) existe déjà, aller au dashboard.
   useEffect(() => {
-    api.me().then(() => setPhase('dashboard')).catch(() => setPhase('login'));
+    api.me().then((m) => { setCsrf(m.csrfToken); setPhase('dashboard'); }).catch(() => setPhase('login'));
   }, []);
 
   async function handleLogin(username, password) {

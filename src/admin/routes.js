@@ -110,6 +110,7 @@ function createAdminRouter({ db, admin = {}, vault = null, connectionManager = n
   router.get('/me', requireAdmin, (req, res) => res.status(200).json({
     username: req.adminUser.username,
     totpEnabled: req.adminUser.totp_enabled,
+    csrfToken: req.adminSession.csrf_token,
   }));
 
   // Changement du mot de passe admin (session OTP-vérifiée + jeton CSRF exigés par requireAdmin).
