@@ -82,4 +82,5 @@ h4 { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
 .inline-row > button { width: auto; flex: 0 0 auto; margin: 0; }
 .creds-block { margin-top: 8px; }
 button.small { width: auto; margin: 0; padding: 6px 10px; font-size: 12px; }
+button.danger { color: var(--danger); border-color: var(--danger); }
 td code { font-family: ui-monospace, SFMono-Regular, monospace; font-size: 12px; color: var(--accent); word-break: break-all; }

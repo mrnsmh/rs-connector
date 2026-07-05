@@ -39,4 +39,9 @@ function generateApiKey() {
   };
 }
 
-module.exports = { generateApiKey, hashApiKey, API_KEY_PREFIX, VISIBLE_PREFIX_LENGTH };
+/** Génère un secret HMAC de webhook pour une application (révélé une fois, stocké tel quel). */
+function generateWebhookSecret() {
+  return `whsec_${crypto.randomBytes(32).toString('base64url')}`;
+}
+
+module.exports = { generateApiKey, hashApiKey, generateWebhookSecret, API_KEY_PREFIX, VISIBLE_PREFIX_LENGTH };

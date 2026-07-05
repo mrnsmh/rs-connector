@@ -63,6 +63,29 @@ function createDb(pool) {
     return result.rows[0] || null;
   }
 
+  async function deleteApplication(id) {
+    const result = await pool.query('DELETE FROM applications WHERE id = $1 RETURNING id', [id]);
+    return result.rowCount > 0;
+  }
+
+  async function updateApplicationWebhookSecret(id, { webhookSecret }) {
+    const result = await pool.query(
+      'UPDATE applications SET webhook_secret = $2, updated_at = now() WHERE id = $1 RETURNING *',
+      [id, webhookSecret],
+    );
+    return result.rows[0] || null;
+  }
+
+  // Cibles de webhook par connexion, avec le secret HMAC de l'application propriétaire.
+  // (URL : celle de la connexion, sinon celle de l'application ; secret : celui de l'app.)
+  async function listConnectionWebhookTargets() {
+    const result = await pool.query(
+      `SELECT c.connection_id, COALESCE(c.webhook_url, a.webhook_url) AS webhook_url, a.webhook_secret
+       FROM connections c LEFT JOIN applications a ON a.id = c.application_id`,
+    );
+    return result.rows;
+  }
+
   async function listApplications() {
     const result = await pool.query(
       'SELECT id, name, api_key_prefix, webhook_url, status, created_at, updated_at FROM applications ORDER BY created_at ASC',
@@ -325,6 +348,9 @@ function createDb(pool) {
     deleteConnection,
     createApplication,
     updateApplicationApiKey,
+    deleteApplication,
+    updateApplicationWebhookSecret,
+    listConnectionWebhookTargets,
     getApplicationByApiKeyHash,
     getApplicationById,
     listApplications,

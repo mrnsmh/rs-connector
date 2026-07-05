@@ -50,6 +50,14 @@ function buildMockDb() {
       a.api_key_hash = apiKeyHash; a.api_key_prefix = apiKeyPrefix;
       return a;
     },
+    async deleteApplication(id) {
+      const i = apps.findIndex((x) => x.id === id);
+      if (i < 0) return false;
+      apps.splice(i, 1);
+      return true;
+    },
+    async deleteConnection(id) { return connections.delete(id); },
+    async updateApplicationWebhookSecret(id, { webhookSecret }) { const a = apps.find((x) => x.id === id); if (!a) return null; a.webhook_secret = webhookSecret; return a; },
     async listConnections() { return [...connections.values()]; },
     async upsertConnection(row) {
       const ex = connections.get(row.connectionId) || {};
@@ -76,6 +84,7 @@ function buildConnectionManager() {
       return { connect: async () => {}, getState: () => ({ connected: false, status: 'connecting', channelType: opts.channelType }) };
     },
     get() { return null; },
+    remove() {},
     getAllStates() { return {}; },
   };
 }
@@ -206,4 +215,52 @@ test('GET /admin/info expose l\'endpoint d\'envoi (PUBLIC_BASE_URL)', async () =
   assert.equal(res.body.baseUrl, 'https://deskrs.example.com');
   assert.equal(res.body.endpoints.sendMessage, 'https://deskrs.example.com/v1/messages');
   assert.equal(res.body.detected, false);
+});
+
+test('DELETE /admin/connections/:id supprime la connexion', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const cm = buildConnectionManager();
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: cm, vault: createVault(KEY) }));
+  await agent.post('/admin/connections').set('X-CSRF-Token', csrf).send({ connectionId: 'c1', channelType: 'telegram', credentials: { token: 'x' } });
+  const res = await agent.delete('/admin/connections/c1').set('X-CSRF-Token', csrf);
+  assert.equal(res.status, 200);
+  assert.equal(db._connections.has('c1'), false);
+});
+
+test('DELETE /admin/applications/:id supprime l\'application', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager() }));
+  const created = await agent.post('/admin/applications').set('X-CSRF-Token', csrf).send({ name: 'A' });
+  const res = await agent.delete(`/admin/applications/${created.body.id}`).set('X-CSRF-Token', csrf);
+  assert.equal(res.status, 200);
+});
+
+test('DELETE /admin/applications/:id inconnue → 404', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager() }));
+  const res = await agent.delete('/admin/applications/nope').set('X-CSRF-Token', csrf);
+  assert.equal(res.status, 404);
+});
+
+test('POST /admin/applications révèle aussi un secret webhook', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg }));
+  const res = await agent.post('/admin/applications').set('X-CSRF-Token', csrf).send({ name: 'A' });
+  assert.equal(res.status, 201);
+  assert.ok(res.body.webhookSecret.startsWith('whsec_'));
+});
+
+test('POST /admin/applications/:id/rotate-webhook-secret régénère le secret', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg }));
+  const created = await agent.post('/admin/applications').set('X-CSRF-Token', csrf).send({ name: 'A' });
+  const res = await agent.post(`/admin/applications/${created.body.id}/rotate-webhook-secret`).set('X-CSRF-Token', csrf).send({});
+  assert.equal(res.status, 200);
+  assert.ok(res.body.webhookSecret.startsWith('whsec_'));
+  assert.notEqual(res.body.webhookSecret, created.body.webhookSecret);
 });

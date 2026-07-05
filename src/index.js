@@ -56,12 +56,13 @@ async function main() {
   // (connections.webhook_url), avec repli sur DEFAULT_WEBHOOK_URL si non configurée
   // individuellement. Le secret HMAC reste global (WEBHOOK_SECRET) pour la v1.
   async function buildConnectionWebhookConfig() {
-    const connections = await db.listConnections();
+    const targets = await db.listConnectionWebhookTargets();
     const map = new Map();
-    for (const s of connections) {
-      const webhookUrl = s.webhook_url || config.defaultWebhookUrl || null;
+    for (const t of targets) {
+      const webhookUrl = t.webhook_url || config.defaultWebhookUrl || null;
       if (webhookUrl) {
-        map.set(s.connection_id, { webhookUrl, secret: config.webhookSecret });
+        // Secret propre à l'application (repli sur le secret global si l'app n'en a pas).
+        map.set(t.connection_id, { webhookUrl, secret: t.webhook_secret || config.webhookSecret });
       }
     }
     return map;

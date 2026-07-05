@@ -135,7 +135,7 @@ function TestSend({ connectionId }) {
 }
 
 // ---- Carte d'une connexion ----
-function ConnectionCard({ c }) {
+function ConnectionCard({ c, onDelete }) {
   const [tab, setTab] = useState(null); // 'qr' | 'send' | null
   const status = (c.state && c.state.status) || c.status;
   const isBaileys = c.channelType === 'whatsapp_baileys';
@@ -150,6 +150,8 @@ function ConnectionCard({ c }) {
       <div className="actions-inline">
         {isBaileys && <button className="secondary" onClick={() => setTab(tab === 'qr' ? null : 'qr')}>{tab === 'qr' ? 'Masquer le QR' : 'Afficher le QR'}</button>}
         <button className="secondary" onClick={() => setTab(tab === 'send' ? null : 'send')}>{tab === 'send' ? 'Fermer' : 'Tester l\u2019envoi'}</button>
+        <span className="spacer" />
+        <button className="secondary small danger" onClick={onDelete}>Supprimer</button>
       </div>
       {tab === 'qr' && <QrView connectionId={c.connectionId} />}
       {tab === 'send' && <TestSend connectionId={c.connectionId} />}
@@ -222,6 +224,7 @@ export default function Dashboard({ onLogout }) {
   const [appWebhook, setAppWebhook] = useState('');
   const [revealedKey, setRevealedKey] = useState(null);
   const [revealedFor, setRevealedFor] = useState(null);
+  const [revealedSecret, setRevealedSecret] = useState(null);
   const [info, setInfo] = useState(null);
   const [exChannel, setExChannel] = useState('');
   const [exTo, setExTo] = useState('');
@@ -257,7 +260,7 @@ export default function Dashboard({ onLogout }) {
     setErr(null); setRevealedKey(null);
     try {
       const r = await api.createApplication(appName, appWebhook || null);
-      setRevealedKey(r.apiKey); setRevealedFor(r.name || appName);
+      setRevealedKey(r.apiKey); setRevealedFor(r.name || appName); setRevealedSecret(r.webhookSecret || null);
       setAppName(''); setAppWebhook('');
       refresh();
     } catch (e2) { setErr(e2.message); }
@@ -265,12 +268,34 @@ export default function Dashboard({ onLogout }) {
 
   async function regenerate(app) {
     if (!window.confirm(`Régénérer la clé de « ${app.name} » ? L'ancienne sera immédiatement révoquée.`)) return;
-    setErr(null); setRevealedKey(null);
+    setErr(null); setRevealedKey(null); setRevealedSecret(null);
     try {
       const r = await api.regenerateKey(app.id);
       setRevealedKey(r.apiKey); setRevealedFor(r.name || app.name);
       refresh();
     } catch (e2) { setErr(e2.message); }
+  }
+
+  async function rotateSecret(app) {
+    if (!window.confirm(`Régénérer le secret webhook de « ${app.name} » ? L'ancien cessera de signer.`)) return;
+    setErr(null); setRevealedKey(null); setRevealedSecret(null);
+    try {
+      const r = await api.rotateWebhookSecret(app.id);
+      setRevealedSecret(r.webhookSecret); setRevealedFor(r.name || app.name);
+      refresh();
+    } catch (e2) { setErr(e2.message); }
+  }
+
+  async function delApp(app) {
+    if (!window.confirm(`Supprimer l'application « ${app.name} » et TOUTES ses connexions ? Irréversible.`)) return;
+    setErr(null);
+    try { await api.deleteApplication(app.id); refresh(); } catch (e2) { setErr(e2.message); }
+  }
+
+  async function delConn(c) {
+    if (!window.confirm(`Supprimer la connexion « ${c.connectionId} » ? Irréversible.`)) return;
+    setErr(null);
+    try { await api.deleteConnection(c.connectionId); refresh(); } catch (e2) { setErr(e2.message); }
   }
 
   async function createConn(e) {
@@ -341,7 +366,11 @@ export default function Dashboard({ onLogout }) {
                   <td><span className="badge">{a.api_key_prefix}…</span></td>
                   <td className="muted">{a.webhook_url || '—'}</td>
                   <td>{a.status}</td>
-                  <td><button className="secondary small" onClick={() => regenerate(a)}>Régénérer la clé</button></td>
+                  <td style={{ whiteSpace: 'nowrap' }}>
+                    <button className="secondary small" onClick={() => regenerate(a)}>Régénérer clé</button>{' '}
+                    <button className="secondary small" onClick={() => rotateSecret(a)}>Secret webhook</button>{' '}
+                    <button className="secondary small danger" onClick={() => delApp(a)}>Supprimer</button>
+                  </td>
                 </tr>
               ))}
               {apps.length === 0 && <tr><td colSpan={5} className="muted">Aucune application</td></tr>}
@@ -360,12 +389,19 @@ export default function Dashboard({ onLogout }) {
               {info && <div className="muted" style={{ marginTop: 8 }}>Elle est déjà insérée dans l'« Exemple d'appel » du panneau Endpoint ci-dessus.</div>}
             </div>
           )}
+          {revealedSecret && (
+            <div className="notice">
+              Secret webhook {revealedFor ? `de « ${revealedFor} »` : ''} — vérifie la signature X-Webhook-Signature des webhooks reçus :
+              <code className="key">{revealedSecret}</code>
+              <div style={{ marginTop: 8 }}><CopyBtn text={revealedSecret} /></div>
+            </div>
+          )}
         </section>
 
         <section className="panel">
           <h2>Connexions</h2>
           <div className="cards">
-            {connections.map((c) => <ConnectionCard key={c.connectionId} c={c} />)}
+            {connections.map((c) => <ConnectionCard key={c.connectionId} c={c} onDelete={() => delConn(c)} />)}
             {connections.length === 0 && <p className="muted">Aucune connexion pour le moment.</p>}
           </div>
 

@@ -88,12 +88,14 @@ session est `SameSite=Strict` + `Secure`).
   - `POST /v1/messages` — envoi sortant `{ channel, to, text }` (`connection_id` optionnel, pour lever une ambiguïté)
   - `GET /v1/connections`, `GET /v1/connections/:id`
 - **Webhooks sortants** (deskrs → application) : `message.received`, `message.status_changed`,
-  `session.connected`, `session.disconnected` — signés `X-Webhook-Signature: sha256=<hex>`.
+  `session.connected`, `session.disconnected` — signés `X-Webhook-Signature: sha256=<hex>`
+  avec le **secret propre à l'application** (révélé à la création, rotation via le back-office ;
+  repli sur `WEBHOOK_SECRET` global si l'app n'en a pas).
 - **Webhook WhatsApp Cloud** (Meta → deskrs) : `GET/POST /webhooks/whatsapp-cloud`.
 - **Back-office (`/admin`, session + OTP + CSRF)** : `login`, `login/otp`, `logout`, `me`,
-  `totp/setup`, `totp/enable` ; provisioning `channels`, `applications` (+ `:id/regenerate-key`),
-  `connections` (+ `:id/qr`, `:id/send`), et `info` (URL de base + endpoints détectés pour les apps).
-  Le dashboard affiche l'endpoint d'intégration détecté — définissez `PUBLIC_BASE_URL` en production
+  `totp/setup`, `totp/enable` ; provisioning `channels`, `applications` (+ `:id/regenerate-key`,
+  `:id/rotate-webhook-secret`, `DELETE :id`), `connections` (+ `:id/qr`, `:id/send`, `DELETE :id`),
+  et `info` (URL de base + endpoints détectés). Définissez `PUBLIC_BASE_URL` en production
   (derrière un proxy, la détection automatique ne voit pas l'URL publique).
 
 ## Sécurité

@@ -17,7 +17,7 @@ const express = require('express');
 const logger = require('../logger');
 const { verifyPassword } = require('./password');
 const { generateSecret, verifyTotp, getOtpauthUri } = require('./totp');
-const { generateApiKey } = require('../api-key');
+const { generateApiKey, generateWebhookSecret } = require('../api-key');
 const {
   hashToken,
   buildSessionCookie,
@@ -180,6 +180,19 @@ function createAdminRouter({ db, admin = {}, vault = null, connectionManager = n
     }
   });
 
+  // Rotation du secret webhook d'une application (révèle le nouveau une fois, l'ancien cesse de signer).
+  router.post('/applications/:id/rotate-webhook-secret', requireAdmin, async (req, res) => {
+    try {
+      const webhookSecret = generateWebhookSecret();
+      const updated = await db.updateApplicationWebhookSecret(req.params.id, { webhookSecret });
+      if (!updated) return res.status(404).json({ error: 'application_not_found' });
+      return res.status(200).json({ id: updated.id, name: updated.name, webhookSecret });
+    } catch (err) {
+      logger.error({ err: err.message, id: req.params.id }, 'Erreur rotation secret webhook');
+      return res.status(500).json({ error: 'internal' });
+    }
+  });
+
   // Applications : liste + création (clé API révélée UNE seule fois).
   router.get('/applications', requireAdmin, async (req, res) => {
     try {
@@ -195,9 +208,10 @@ function createAdminRouter({ db, admin = {}, vault = null, connectionManager = n
     if (!name) return res.status(400).json({ error: 'name requis' });
     try {
       const { apiKey, prefix, hash } = generateApiKey();
-      const app = await db.createApplication({ name, apiKeyHash: hash, apiKeyPrefix: prefix, webhookUrl });
-      // apiKey n'est renvoyée qu'ici, une seule fois (jamais stockée en clair).
-      return res.status(201).json({ id: app.id, name: app.name, apiKey, apiKeyPrefix: prefix, webhookUrl: app.webhook_url });
+      const webhookSecret = generateWebhookSecret();
+      const app = await db.createApplication({ name, apiKeyHash: hash, apiKeyPrefix: prefix, webhookUrl, webhookSecret });
+      // apiKey et webhookSecret ne sont renvoyés qu'ici, une seule fois.
+      return res.status(201).json({ id: app.id, name: app.name, apiKey, apiKeyPrefix: prefix, webhookUrl: app.webhook_url, webhookSecret });
     } catch (err) {
       logger.error({ err: err.message }, 'Erreur création application');
       return res.status(500).json({ error: 'internal' });
@@ -277,6 +291,44 @@ function createAdminRouter({ db, admin = {}, vault = null, connectionManager = n
     } catch (err) {
       logger.error({ err: err.message, connectionId: req.params.connectionId }, 'Erreur envoi de test (admin)');
       return res.status(500).json({ error: 'send_failed', message: err.message });
+    }
+  });
+
+  // Suppression d'une connexion : stoppe la session live puis retire la ligne DB.
+  router.delete('/connections/:connectionId', requireAdmin, async (req, res) => {
+    const id = req.params.connectionId;
+    try {
+      if (connectionManager) {
+        const adapter = connectionManager.get(id);
+        if (adapter && typeof adapter.disconnect === 'function') { try { await adapter.disconnect(); } catch { /* ignore */ } }
+        connectionManager.remove(id);
+      }
+      await db.deleteConnection(id);
+      return res.status(200).json({ ok: true, connectionId: id });
+    } catch (err) {
+      logger.error({ err: err.message, connectionId: id }, 'Erreur suppression connexion');
+      return res.status(500).json({ error: 'internal' });
+    }
+  });
+
+  // Suppression d'une application : stoppe ses connexions live puis supprime (cascade DB).
+  router.delete('/applications/:id', requireAdmin, async (req, res) => {
+    const id = req.params.id;
+    try {
+      if (connectionManager && typeof db.listConnectionsByApplication === 'function') {
+        const conns = await db.listConnectionsByApplication(id);
+        for (const c of conns) {
+          const adapter = connectionManager.get(c.connection_id);
+          if (adapter && typeof adapter.disconnect === 'function') { try { await adapter.disconnect(); } catch { /* ignore */ } }
+          connectionManager.remove(c.connection_id);
+        }
+      }
+      const ok = await db.deleteApplication(id);
+      if (!ok) return res.status(404).json({ error: 'application_not_found' });
+      return res.status(200).json({ ok: true, id });
+    } catch (err) {
+      logger.error({ err: err.message, id }, 'Erreur suppression application');
+      return res.status(500).json({ error: 'internal' });
     }
   });
 
