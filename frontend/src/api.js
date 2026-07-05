@@ -49,4 +49,6 @@ export const api = {
   deleteConnection: (id) => request(`/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   deleteApplication: (id) => request(`/applications/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   rotateWebhookSecret: (id) => request(`/applications/${encodeURIComponent(id)}/rotate-webhook-secret`, { method: 'POST', body: {} }),
+  setDefaultConnection: (id) => request(`/connections/${encodeURIComponent(id)}/default`, { method: 'POST', body: {} }),
+  unsetDefaultConnection: (id) => request(`/connections/${encodeURIComponent(id)}/default`, { method: 'DELETE' }),
 };

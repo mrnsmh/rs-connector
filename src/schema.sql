@@ -61,6 +61,11 @@ ALTER TABLE connections ADD COLUMN IF NOT EXISTS application_id UUID REFERENCES 
 -- Migration idempotente : credentials de canal chiffrés au repos (AES-GCM, Task 11).
 ALTER TABLE connections ADD COLUMN IF NOT EXISTS credentials_encrypted TEXT;
 
+-- Canal par défaut d'une application : connexion utilisée par /v1/messages quand l'appel
+-- ne précise NI connection_id NI channel (repli). ON DELETE SET NULL : si la connexion
+-- par défaut est supprimée, l'application repasse simplement "sans défaut" (pas d'erreur).
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS default_connection_id TEXT REFERENCES connections(connection_id) ON DELETE SET NULL;
+
 -- Correctif post-relecture critique (voir SUIVI-AVANCEMENT.md, section "Task 4/5 rouvertes") :
 -- cache persistant du mapping LID->numéro réel, par connexion. Alimente le contact-resolver
 -- (Task 5) sans relire les fichiers d'auth Baileys à chaque envoi, et est mis à jour aussi

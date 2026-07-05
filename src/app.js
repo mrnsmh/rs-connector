@@ -203,14 +203,22 @@ function createApp(options = {}) {
           });
         }
         if (candidates.length > 1) {
-          return res.status(400).json({
-            error: channel ? 'ambiguous_connection' : 'channel_required',
-            message: channel
-              ? `Plusieurs connexions de canal "${channel}" : précisez connection_id`
-              : 'Plusieurs connexions : précisez channel (ou connection_id)',
-          });
+          // Repli sur le canal par défaut de l'application quand aucun sélecteur n'est
+          // fourni (ni connection_id ni channel) : on envoie via sa connexion par défaut.
+          const defaultId = !channel ? req.application.default_connection_id : null;
+          const chosen = defaultId ? candidates.find((c) => c.connection_id === defaultId) : null;
+          if (!chosen) {
+            return res.status(400).json({
+              error: channel ? 'ambiguous_connection' : 'channel_required',
+              message: channel
+                ? `Plusieurs connexions de canal "${channel}" : précisez connection_id`
+                : 'Plusieurs connexions : précisez channel (ou connection_id), ou définissez un canal par défaut',
+            });
+          }
+          target = chosen;
+        } else {
+          target = candidates[0];
         }
-        target = candidates[0];
       }
 
       const targetId = target.connection_id;

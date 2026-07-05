@@ -115,6 +115,8 @@ h4 { margin: 0 0 6px; font-size: 11.5px; color: var(--muted); text-transform: up
 .card { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 15px; }
 .card-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .card-head .id { font-weight: 650; font-size: 14.5px; }
+.badge.is-default { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.card.is-default { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
 
 .status { display: inline-flex; align-items: center; padding: 3px 10px 3px 9px; border-radius: 999px; font-size: 12px; border: 1px solid var(--border-strong); color: var(--muted); background: var(--panel); }
 .status .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: currentColor; margin-right: 7px; }

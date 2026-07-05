@@ -313,6 +313,41 @@ function createAdminRouter({ db, admin = {}, vault = null, connectionManager = n
     }
   });
 
+  // Canal par défaut : définit CETTE connexion comme défaut de son application (repli
+  // /v1/messages quand l'appel ne précise pas de canal). La connexion doit appartenir à une app.
+  router.post('/connections/:connectionId/default', requireAdmin, async (req, res) => {
+    try {
+      const conn = await db.getConnection(req.params.connectionId);
+      if (!conn) return res.status(404).json({ error: 'connection_not_found' });
+      if (!conn.application_id) {
+        return res.status(400).json({ error: 'no_application', message: 'La connexion doit appartenir à une application pour devenir le canal par défaut' });
+      }
+      await db.setApplicationDefaultConnection(conn.application_id, conn.connection_id);
+      return res.status(200).json({ ok: true, applicationId: conn.application_id, defaultConnectionId: conn.connection_id });
+    } catch (err) {
+      logger.error({ err: err.message, connectionId: req.params.connectionId }, 'Erreur définition canal par défaut');
+      return res.status(500).json({ error: 'internal' });
+    }
+  });
+
+  // Retrait du canal par défaut : si CETTE connexion est le défaut de son app, on l'enlève.
+  router.delete('/connections/:connectionId/default', requireAdmin, async (req, res) => {
+    try {
+      const conn = await db.getConnection(req.params.connectionId);
+      if (!conn) return res.status(404).json({ error: 'connection_not_found' });
+      if (conn.application_id) {
+        const app = await db.getApplicationById(conn.application_id);
+        if (app && app.default_connection_id === conn.connection_id) {
+          await db.setApplicationDefaultConnection(conn.application_id, null);
+        }
+      }
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      logger.error({ err: err.message, connectionId: req.params.connectionId }, 'Erreur retrait canal par défaut');
+      return res.status(500).json({ error: 'internal' });
+    }
+  });
+
   // Suppression d'une connexion : stoppe la session live puis retire la ligne DB.
   router.delete('/connections/:connectionId', requireAdmin, async (req, res) => {
     const id = req.params.connectionId;

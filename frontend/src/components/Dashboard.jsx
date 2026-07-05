@@ -136,21 +136,27 @@ function TestSend({ connectionId }) {
 }
 
 // ---- Carte d'une connexion ----
-function ConnectionCard({ c, onDelete }) {
+function ConnectionCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault }) {
   const [tab, setTab] = useState(null); // 'qr' | 'send' | null
   const status = (c.state && c.state.status) || c.status;
   const isBaileys = c.channelType === 'whatsapp_baileys';
   return (
-    <div className="card">
+    <div className={`card${isDefault ? ' is-default' : ''}`}>
       <div className="card-head">
         <span className="id">{c.connectionId}</span>
         <span className="badge">{label(c.channelType)}</span>
+        {isDefault && <span className="badge is-default" title="Canal par défaut de l'application (utilisé quand l'appel ne précise pas de canal)">★ défaut</span>}
         <span className="spacer" />
         <span className={`status ${status}`}><span className="dot" />{status}</span>
       </div>
       <div className="actions-inline">
         {isBaileys && <button className="secondary" onClick={() => setTab(tab === 'qr' ? null : 'qr')}>{tab === 'qr' ? 'Masquer le QR' : 'Afficher le QR'}</button>}
         <button className="secondary" onClick={() => setTab(tab === 'send' ? null : 'send')}>{tab === 'send' ? 'Fermer' : 'Tester l\u2019envoi'}</button>
+        {canBeDefault && (
+          isDefault
+            ? <button className="small" onClick={onToggleDefault} title="Retirer ce canal comme défaut">★ Par défaut</button>
+            : <button className="secondary small" onClick={onToggleDefault} title="Utiliser ce canal quand l'appel /v1/messages ne précise pas de canal">Définir par défaut</button>
+        )}
         <span className="spacer" />
         <button className="secondary small danger" onClick={onDelete}>Supprimer</button>
       </div>
@@ -337,6 +343,24 @@ export default function Dashboard({ onLogout }) {
     try { await api.deleteConnection(c.connectionId); refresh(); } catch (e2) { setErr(e2.message); }
   }
 
+  // Canal par défaut par application (repli /v1/messages quand l'appel ne précise pas de canal).
+  const defaultByApp = {};
+  for (const a of apps) if (a.default_connection_id) defaultByApp[a.id] = a.default_connection_id;
+
+  async function toggleDefault(c) {
+    setErr(null);
+    const isDef = !!c.applicationId && defaultByApp[c.applicationId] === c.connectionId;
+    try {
+      if (isDef) await api.unsetDefaultConnection(c.connectionId);
+      else await api.setDefaultConnection(c.connectionId);
+      refresh();
+    } catch (e2) {
+      setErr(e2.data && e2.data.error === 'no_application'
+        ? 'Rattachez d’abord cette connexion à une application pour en faire le canal par défaut.'
+        : e2.message);
+    }
+  }
+
   async function createConn(e) {
     e.preventDefault();
     setErr(null); setConnMsg(null);
@@ -401,6 +425,7 @@ export default function Dashboard({ onLogout }) {
               <label>Message (text)<input value={exText} onChange={(e) => setExText(e.target.value)} /></label>
             </div>
             <code className="key">{`curl -X POST ${info.endpoints.sendMessage} \\\n  -H "Authorization: Bearer ${revealedKey || '<clé_API>'}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify({ channel: exChannel || '<canal>', to: exTo || '<destinataire>', text: exText || '<message>' })}'`}</code>
+            <p className="muted" style={{ marginTop: 10 }}>Si vous omettez <code className="mono">channel</code> (et <code className="mono">connection_id</code>), l'appel utilise le <b>canal par défaut</b> de l'application — définissable via le bouton « Définir par défaut » sur une connexion ci-dessous.</p>
           </section>
         )}
 
@@ -450,7 +475,16 @@ export default function Dashboard({ onLogout }) {
         <section className="panel">
           <h2>Connexions</h2>
           <div className="cards">
-            {connections.map((c) => <ConnectionCard key={c.connectionId} c={c} onDelete={() => delConn(c)} />)}
+            {connections.map((c) => (
+              <ConnectionCard
+                key={c.connectionId}
+                c={c}
+                onDelete={() => delConn(c)}
+                canBeDefault={!!c.applicationId}
+                isDefault={!!c.applicationId && defaultByApp[c.applicationId] === c.connectionId}
+                onToggleDefault={() => toggleDefault(c)}
+              />
+            ))}
             {connections.length === 0 && <p className="muted">Aucune connexion pour le moment.</p>}
           </div>
 

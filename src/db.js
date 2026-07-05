@@ -53,6 +53,15 @@ function createDb(pool) {
     return result.rows[0] || null;
   }
 
+  // Canal par défaut de l'application (repli /v1/messages). connectionId peut être null (retrait).
+  async function setApplicationDefaultConnection(id, connectionId) {
+    const result = await pool.query(
+      'UPDATE applications SET default_connection_id = $2, updated_at = now() WHERE id = $1 RETURNING *',
+      [id, connectionId],
+    );
+    return result.rows[0] || null;
+  }
+
   // Régénération de la clé API d'une application : remplace le hash + le préfixe (l'ancienne
   // clé devient invalide immédiatement). La clé en clair n'est jamais stockée.
   async function updateApplicationApiKey(id, { apiKeyHash, apiKeyPrefix }) {
@@ -88,7 +97,7 @@ function createDb(pool) {
 
   async function listApplications() {
     const result = await pool.query(
-      'SELECT id, name, api_key_prefix, webhook_url, status, created_at, updated_at FROM applications ORDER BY created_at ASC',
+      'SELECT id, name, api_key_prefix, webhook_url, status, default_connection_id, created_at, updated_at FROM applications ORDER BY created_at ASC',
     );
     return result.rows;
   }
@@ -361,6 +370,7 @@ function createDb(pool) {
     listConnectionWebhookTargets,
     getApplicationByApiKeyHash,
     getApplicationById,
+    setApplicationDefaultConnection,
     listApplications,
     listConnectionsByApplication,
     getConnectionForApplication,

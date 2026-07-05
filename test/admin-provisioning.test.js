@@ -39,9 +39,9 @@ function buildMockDb() {
     async recordFailedLogin(u, { failedCount, lockedUntil = null }) { attempts.set(u, { username: u, failed_count: failedCount, locked_until: lockedUntil }); },
     async resetLoginAttempts(u) { attempts.delete(u); },
     // provisioning
-    async listApplications() { return apps.map((a) => ({ id: a.id, name: a.name, api_key_prefix: a.api_key_prefix, webhook_url: a.webhook_url, status: a.status })); },
+    async listApplications() { return apps.map((a) => ({ id: a.id, name: a.name, api_key_prefix: a.api_key_prefix, webhook_url: a.webhook_url, status: a.status, default_connection_id: a.default_connection_id ?? null })); },
     async createApplication({ name, apiKeyHash, apiKeyPrefix, webhookUrl = null }) {
-      const a = { id: `app${apps.length + 1}`, name, api_key_hash: apiKeyHash, api_key_prefix: apiKeyPrefix, webhook_url: webhookUrl, status: 'active' };
+      const a = { id: `app${apps.length + 1}`, name, api_key_hash: apiKeyHash, api_key_prefix: apiKeyPrefix, webhook_url: webhookUrl, status: 'active', default_connection_id: null };
       apps.push(a);
       return a;
     },
@@ -58,6 +58,9 @@ function buildMockDb() {
       return true;
     },
     async deleteConnection(id) { return connections.delete(id); },
+    async getConnection(id) { return connections.get(id) || null; },
+    async getApplicationById(id) { return apps.find((x) => x.id === id) || null; },
+    async setApplicationDefaultConnection(id, connectionId) { const a = apps.find((x) => x.id === id); if (a) a.default_connection_id = connectionId; return a || null; },
     async updateApplicationWebhookSecret(id, { webhookSecret }) { const a = apps.find((x) => x.id === id); if (!a) return null; a.webhook_secret = webhookSecret; return a; },
     async listConnections() { return [...connections.values()]; },
     async upsertConnection(row) {
@@ -308,4 +311,65 @@ test('POST /admin/change-password sans CSRF → 403', async () => {
 test('POST /admin/change-password sans session → 401', async () => {
   const res = await supertest(createApp({ db: buildMockDb(), admin: adminCfg })).post('/admin/change-password').send({ currentPassword: 'x', newPassword: 'nouveau-mdp-123' });
   assert.equal(res.status, 401);
+});
+
+// ---- Canal par défaut (repli /v1/messages) ----
+
+async function appWithConn(agent, csrf, vaultKey) {
+  const app = await agent.post('/admin/applications').set('X-CSRF-Token', csrf).send({ name: 'A' });
+  await agent.post('/admin/connections').set('X-CSRF-Token', csrf)
+    .send({ connectionId: 'c1', channelType: 'telegram', applicationId: app.body.id, credentials: { token: 'x' } });
+  return app.body.id;
+}
+
+test('POST /admin/connections/:id/default définit le canal par défaut de son application', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  const appId = await appWithConn(agent, csrf);
+  const res = await agent.post('/admin/connections/c1/default').set('X-CSRF-Token', csrf).send({});
+  assert.equal(res.status, 200);
+  assert.equal(res.body.defaultConnectionId, 'c1');
+  assert.equal(res.body.applicationId, appId);
+  const list = await agent.get('/admin/applications');
+  assert.equal(list.body.applications.find((x) => x.id === appId).default_connection_id, 'c1');
+});
+
+test('DELETE /admin/connections/:id/default retire le canal par défaut', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  const appId = await appWithConn(agent, csrf);
+  await agent.post('/admin/connections/c1/default').set('X-CSRF-Token', csrf).send({});
+  const res = await agent.delete('/admin/connections/c1/default').set('X-CSRF-Token', csrf);
+  assert.equal(res.status, 200);
+  const list = await agent.get('/admin/applications');
+  assert.equal(list.body.applications.find((x) => x.id === appId).default_connection_id, null);
+});
+
+test('POST /admin/connections/:id/default sur connexion sans application → 400 no_application', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  await agent.post('/admin/connections').set('X-CSRF-Token', csrf).send({ connectionId: 'orphan', channelType: 'telegram', credentials: { token: 'x' } });
+  const res = await agent.post('/admin/connections/orphan/default').set('X-CSRF-Token', csrf).send({});
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, 'no_application');
+});
+
+test('POST /admin/connections/:id/default sur connexion inconnue → 404', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager() }));
+  const res = await agent.post('/admin/connections/nope/default').set('X-CSRF-Token', csrf).send({});
+  assert.equal(res.status, 404);
+});
+
+test('POST /admin/connections/:id/default sans CSRF → 403', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  await appWithConn(agent, csrf);
+  const res = await agent.post('/admin/connections/c1/default').send({});
+  assert.equal(res.status, 403);
 });
