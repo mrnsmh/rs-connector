@@ -3,10 +3,10 @@ import QRCode from 'qrcode';
 import { api } from '../api';
 
 const CHANNEL_LABELS = {
-  whatsapp_baileys: 'WhatsApp (Baileys · QR)',
-  whatsapp_cloud: 'WhatsApp Cloud (Meta)',
-  telegram: 'Telegram',
-  email: 'Email (SMTP/IMAP)',
+  whatsapp_baileys: '📱 WhatsApp (Baileys · QR)',
+  whatsapp_cloud: '☁️ WhatsApp Cloud (Meta)',
+  telegram: '✈️ Telegram',
+  email: '✉️ Email (SMTP/IMAP)',
 };
 const label = (t) => CHANNEL_LABELS[t] || t;
 
@@ -145,7 +145,7 @@ function ConnectionCard({ c, onDelete }) {
         <span className="id">{c.connectionId}</span>
         <span className="badge">{label(c.channelType)}</span>
         <span className="spacer" />
-        <span className={`status ${status}`}>{status}</span>
+        <span className={`status ${status}`}><span className="dot" />{status}</span>
       </div>
       <div className="actions-inline">
         {isBaileys && <button className="secondary" onClick={() => setTab(tab === 'qr' ? null : 'qr')}>{tab === 'qr' ? 'Masquer le QR' : 'Afficher le QR'}</button>}
@@ -226,6 +226,7 @@ export default function Dashboard({ onLogout }) {
   const [revealedFor, setRevealedFor] = useState(null);
   const [revealedSecret, setRevealedSecret] = useState(null);
   const [info, setInfo] = useState(null);
+  const [meUser, setMeUser] = useState(null);
   const [exChannel, setExChannel] = useState('');
   const [exTo, setExTo] = useState('');
   const [exText, setExText] = useState('Bonjour depuis rs-connector');
@@ -239,11 +240,12 @@ export default function Dashboard({ onLogout }) {
 
   const refresh = useCallback(async () => {
     try {
-      const [c, a, cx, inf] = await Promise.all([api.channels(), api.listApplications(), api.listConnections(), api.info().catch(() => null)]);
+      const [c, a, cx, inf, m] = await Promise.all([api.channels(), api.listApplications(), api.listConnections(), api.info().catch(() => null), api.me().catch(() => null)]);
       setChannels(c.channels || []);
       setApps(a.applications || []);
       setConnections(cx.connexions || []);
       if (inf) setInfo(inf);
+      if (m) setMeUser(m.username);
       setConnType((prev) => prev || (c.channels && c.channels[0] ? c.channels[0].channelType : ''));
       setExChannel((prev) => prev || (c.channels && c.channels[0] ? c.channels[0].channelType : ''));
     } catch (e) { setErr(e.message); }
@@ -322,10 +324,17 @@ export default function Dashboard({ onLogout }) {
   return (
     <>
       <header className="topbar">
-        <h1>rs-connector — back-office</h1>
+        <div className="brand"><span className="logo">🔗</span> <b>RS-Connector</b> <span className="sub">back-office</span></div>
+        <span className="spacer" />
+        {meUser && <span className="who">👤 {meUser}</span>}
         <button className="secondary" onClick={onLogout}>Déconnexion</button>
       </header>
       <main className="dash">
+        <div className="summary">
+          <span>{apps.length} application{apps.length > 1 ? 's' : ''}</span>
+          <span>{connections.length} connexion{connections.length > 1 ? 's' : ''}</span>
+          <span className="ok-text">{connections.filter((x) => ((x.state && x.state.status) || x.status) === 'connected').length} connectée(s)</span>
+        </div>
         {err && <div className="panel error">{err}</div>}
 
         {info && (
