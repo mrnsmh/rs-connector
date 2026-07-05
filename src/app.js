@@ -219,6 +219,12 @@ function createApp(options = {}) {
       if (!session) {
         return res.status(409).json({ error: 'connection_not_active', message: 'Connexion non active (aucune session en cours)' });
       }
+      // La session peut exister mais ne pas être encore connectée (ex. WhatsApp en attente de
+      // scan QR, ou canal en cours d'initialisation) : dans ce cas l'envoi échouerait avec une
+      // erreur générique (500). On renvoie plutôt le 409 contractuel connection_not_active.
+      if (typeof session.isConnected === 'function' && !session.isConnected()) {
+        return res.status(409).json({ error: 'connection_not_active', message: 'Connexion non active (canal non connecté)' });
+      }
       const result = rateLimiter
         ? await rateLimiter.schedule(targetId, () => session.sendMessage(to, text))
         : await session.sendMessage(to, text);

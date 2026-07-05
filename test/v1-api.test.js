@@ -69,6 +69,27 @@ test('POST /v1/messages avec champs manquants → 400', async () => {
   assert.equal(res.status, 400);
 });
 
+test('POST /v1/messages : session existante mais canal non connecté → 409 connection_not_active', async () => {
+  const sent = [];
+  // Session présente (ex. WhatsApp en attente de scan QR) mais isConnected() === false :
+  // l'envoi ne doit pas être tenté et l'API renvoie le 409 contractuel (pas un 500).
+  const connectionManager = {
+    get() {
+      return {
+        isConnected: () => false,
+        sendMessage: async (to, text) => { sent.push({ to, text }); return { messageId: 'nope' }; },
+        getState: () => ({ connected: false, status: 'connecting' }),
+      };
+    },
+    getAllStates() { return { c1: { status: 'connecting' } }; },
+  };
+  const app = createApp({ db: buildDb(), connectionManager });
+  const res = await supertest(app).post('/v1/messages').set(authHeader).send({ connection_id: 'c1', to: '212600000000', text: 'hi' });
+  assert.equal(res.status, 409);
+  assert.equal(res.body.error, 'connection_not_active');
+  assert.equal(sent.length, 0, 'aucun envoi ne doit avoir lieu si le canal n\'est pas connecté');
+});
+
 test('GET /v1/connections ne liste que les connexions de l\'app appelante', async () => {
   const app = createApp({ db: buildDb(), connectionManager: buildConnectionManager([]) });
   const res = await supertest(app).get('/v1/connections').set(authHeader);
