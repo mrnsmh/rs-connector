@@ -241,7 +241,7 @@ function createDb(pool) {
       `UPDATE outbox_webhooks SET
          status = $2,
          attempts = attempts + 1,
-         next_retry_at = $3,
+         next_retry_at = COALESCE($3, next_retry_at),
          last_error = $4,
          updated_at = now()
        WHERE id = $1

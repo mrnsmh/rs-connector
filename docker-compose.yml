@@ -14,6 +14,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - rs_connector_pg_data:/var/lib/postgresql/data
+      - ./.data/pg-init:/docker-entrypoint-initdb.d:ro
     networks: [ internal ]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-rs_connector} -d ${DB_NAME:-rs_connector}"]
@@ -39,7 +40,7 @@ services:
     depends_on:
       db: { condition: service_healthy }
     volumes:
-      - rs_connector_auth:/data/auth
+      - ./.data/auth:/data/auth
     networks: [ internal, apps-bridge ]
     ports:
       - "127.0.0.1:${PORT:-3007}:3007"

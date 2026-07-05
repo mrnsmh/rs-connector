@@ -8,6 +8,7 @@ const { createApiKeyAuth } = require('./auth-apikey');
 const { verifyMetaSignature, checkVerification, extractInboundEvents } = require('./whatsapp-cloud-webhook');
 const { createAdminRouter } = require('./admin/routes');
 const adapterRegistry = require('./adapters');
+const path = require('node:path');
 
 /**
  * Construit l'application Express (sans démarrer le listener HTTP).
@@ -33,6 +34,11 @@ function createApp(options = {}) {
       uptimeSeconds: Math.round(process.uptime()),
     });
   });
+
+  // Sert le back-office (frontend construit) s'il est présent — déploiement conteneur : une
+  // seule origine pour l'UI + l'API, donc le cookie de session fonctionne sans proxy.
+  const publicDir = process.env.PUBLIC_DIR || path.join(__dirname, '..', 'public');
+  app.use(express.static(publicDir));
 
   // Back-office sécurisé (Task 9) : routes /admin (login → OTP → session, CSRF, lockout) +
   // provisioning (apps/connexions avec credentials chiffrés).
