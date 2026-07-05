@@ -23,6 +23,10 @@ function createApp(options = {}) {
   const { connectionManager, db, rateLimiter, whatsappCloud, admin, vault, publicBaseUrl = '' } = options;
   const app = express();
 
+  // Derrière un reverse-proxy (nginx + Cloudflare) : tenir compte des en-têtes X-Forwarded-*
+  // (proto HTTPS, IP réelle du client) pour cookies Secure, logs et rate-limit.
+  app.set('trust proxy', 1);
+
   app.use(pinoHttp({ logger }));
   // `verify` capture le corps BRUT pour la vérification de signature des webhooks (Meta).
   app.use(express.json({ verify: (req, res, buf) => { req.rawBody = buf; } }));
