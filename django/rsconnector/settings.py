@@ -36,6 +36,10 @@ DEBUG = _env_bool("DJANGO_DEBUG", True)
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "*").split(",") if h]
 CSRF_TRUSTED_ORIGINS = [o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o]
 
+# Cle de chiffrement des credentials de connexion (AES-256-GCM), PARTAGEE avec le worker
+# Node (meme valeur que CREDENTIALS_ENCRYPTION_KEY cote Node). Jamais commitee (vient du .env).
+CREDENTIALS_ENCRYPTION_KEY = os.environ.get("CREDENTIALS_ENCRYPTION_KEY", "")
+
 
 # Application definition
 
