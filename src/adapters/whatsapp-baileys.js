@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Adaptateur de canal WhatsApp (Baileys) — premier adaptateur de deskrs.
+ * Adaptateur de canal WhatsApp (Baileys) — premier adaptateur de rs-connector.
  *
  * Il enveloppe `src/session.js` (l'implémentation Baileys existante, non modifiée) pour
  * l'exposer via l'interface commune d'adaptateur attendue par le connection-manager :

@@ -87,7 +87,7 @@ async function main() {
   const app = createApp({ connectionManager, db, rateLimiter, webhookSigner, whatsappCloud: config.whatsappCloud, admin: config.admin, vault, publicBaseUrl: config.publicBaseUrl });
 
   const server = app.listen(config.port, () => {
-    logger.info({ port: config.port }, 'deskrs démarré');
+    logger.info({ port: config.port }, 'rs-connector démarré');
   });
 
   function shutdown(signal) {

@@ -3,7 +3,7 @@
 /**
  * Middleware d'authentification par clé API pour l'API d'entrée multi-app (/v1, Task 5).
  *
- * L'application cliente présente sa clé via `Authorization: Bearer <clé>`. deskrs en calcule
+ * L'application cliente présente sa clé via `Authorization: Bearer <clé>`. rs-connector en calcule
  * le hash SHA-256 et cherche l'application correspondante en base. En cas de succès,
  * `req.application` est renseignée et sert au scoping (une app ne voit que ses connexions).
  *

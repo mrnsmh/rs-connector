@@ -1,20 +1,20 @@
-# deskrs — Plan de tâches & architecture
+# rs-connector — Plan de tâches & architecture
 
-> **deskrs** est un hub de messagerie **multi-canal**, **indépendant**, qu'on branche sur
+> **rs-connector** est un hub de messagerie **multi-canal**, **indépendant**, qu'on branche sur
 > **plusieurs applications** clientes. Il gère les connexions à des canaux (WhatsApp,
 > Telegram, Email, …), normalise les messages entrants/sortants, et notifie chaque
 > application via des **webhooks signés**. Un **back-office sécurisé** (frontend séparé,
 > mot de passe + OTP) permet de configurer les comptes de canal.
 >
 > Cloné depuis `wa-gateway-desklink` (passerelle WhatsApp/Baileys dédiée à desklink), qui
-> **reste intact**. deskrs généralise ce socle sans jamais toucher au projet d'origine.
+> **reste intact**. rs-connector généralise ce socle sans jamais toucher au projet d'origine.
 
 ---
 
 ## 1. Principes directeurs
 
 1. **Indépendance totale** — aucune ressource partagée (base, volume, réseau, variable
-   d'env) avec les autres services. Base Postgres dédiée `deskrs`, volumes dédiés.
+   d'env) avec les autres services. Base Postgres dédiée `rs-connector`, volumes dédiés.
 2. **Sécurité par défaut** — credentials de canal **chiffrés au repos** (AES-GCM, clé hors
    DB) ; back-office protégé par mot de passe + **OTP TOTP** ; webhooks **signés HMAC** ;
    API d'entrée authentifiée par **clé API** par application.
@@ -30,10 +30,10 @@
 
 | # | Décision | Choix retenu |
 |---|----------|--------------|
-| 1 | Back-office | **Frontend séparé** (SPA) + API d'admin sécurisée côté deskrs |
+| 1 | Back-office | **Frontend séparé** (SPA) + API d'admin sécurisée côté rs-connector |
 | 2 | Portée d'une connexion | **Une connexion appartient à une seule application** ; modèle prévu pour évoluer vers le partage multi-app plus tard |
 | 3 | WhatsApp | **Baileys conservé** + **adaptateur Meta Cloud API** (config officielle) en complément |
-| 4 | Base de données | **Base dédiée `deskrs`**, indépendante du reste |
+| 4 | Base de données | **Base dédiée `rs-connector`**, indépendante du reste |
 | 5 | Vague 1 des canaux | **Telegram + Email** d'abord |
 | 6 | Chiffrement credentials | **AES-GCM au repos, clé injectée hors DB** — validé dès le départ |
 
@@ -59,7 +59,7 @@
    App A  ◀── webhook signé ────┘   (message.received, .status_changed,
    App B  ◀── webhook signé ────┘    connection.connected/.disconnected)
 
-   Back-office (frontend séparé)  ──▶  API admin (login + OTP)  ──▶  deskrs
+   Back-office (frontend séparé)  ──▶  API admin (login + OTP)  ──▶  rs-connector
 ```
 
 ### 3.1 Abstraction « adaptateur de canal »
@@ -105,7 +105,7 @@ createXxxAdapter(deps, connection, options) => {
 
 ### 3.3 Back-office sécurisé
 
-- **Frontend séparé** (SPA), communiquant avec une **API d'admin** exposée par deskrs.
+- **Frontend séparé** (SPA), communiquant avec une **API d'admin** exposée par rs-connector.
 - Auth : **mot de passe** (hash argon2 ou bcrypt) → **OTP TOTP** (2FA) → session.
 - Cookies **httpOnly + Secure + SameSite**, protection **CSRF**, **rate-limit + lockout** sur
   le login. Séparé de l'API d'entrée des apps (surfaces distinctes).
@@ -189,7 +189,7 @@ login_attempts     suivi rate-limit / lockout
 - `GET  /v1/connections` — connexions de l'app appelante
 - `GET  /v1/connections/:id` — état d'une connexion (statut, QR si applicable)
 
-**Webhooks sortants (deskrs → app)** — signés `X-Webhook-Signature` (HMAC)
+**Webhooks sortants (rs-connector → app)** — signés `X-Webhook-Signature` (HMAC)
 - `message.received`, `message.status_changed`, `connection.connected`,
   `connection.disconnected`
 
@@ -201,9 +201,9 @@ login_attempts     suivi rate-limit / lockout
 
 ## 7. Feuille de route (tâches)
 
-**Vague 0 — Socle deskrs**
-- [x] T1 — Clone propre `wa-gateway-desklink` → `deskrs` (sans node_modules/.env/auth), install, tests verts (102/102)
-- [x] T2 — Renommage/config (package.json, config.js, docker-compose.yml, .env.example, identité service) → base `deskrs`
+**Vague 0 — Socle rs-connector**
+- [x] T1 — Clone propre `wa-gateway-desklink` → `rs-connector` (sans node_modules/.env/auth), install, tests verts (102/102)
+- [x] T2 — Renommage/config (package.json, config.js, docker-compose.yml, .env.example, identité service) → base `rs-connector`
 - [x] T3 — Ce document (`PLAN-TACHES.md`)
 
 **Vague 1 — Abstraction + multi-app + 2 canaux**
@@ -261,7 +261,7 @@ login_attempts     suivi rate-limit / lockout
   `connections.credentials_encrypted`, secret TOTP chiffré au repos ; **endpoints de
   provisioning** `/admin` (channels, applications avec clé révélée une fois, connexions avec
   credentials chiffrés — **fail-closed** sans clé) ; restauration déchiffrée au démarrage ;
-  CLI `scripts/generate-key.js` ; +14 tests → 178/178 verts. **Backend deskrs complet (T1–T9, T11).**
+  CLI `scripts/generate-key.js` ; +14 tests → 178/178 verts. **Backend rs-connector complet (T1–T9, T11).**
 - Prochaine étape : **T10** (frontend séparé Vite+React : login → OTP → dashboard ; l'API admin de provisioning est déjà prête).
 
 - **2026-07-05** — T10 ✅ (frontend séparé **Vite + React** dans `frontend/` : machine à états
@@ -270,7 +270,7 @@ login_attempts     suivi rate-limit / lockout
 - **2026-07-05** — T12 ✅ (`README.md` + `docs/INTEGRATION.md` : guide de branchement multi-app
   — clé API, envoi `/v1`, réception + vérification de signature webhook, credentials par canal,
   webhook Meta ; durcissement : suppression de `/api/send` legacy non authentifié, exigence
-  documentée de `WHATSAPP_CLOUD_APP_SECRET`). **Projet deskrs terminé : T1–T12, 178 tests verts, 0 vulnérabilité.**
+  documentée de `WHATSAPP_CLOUD_APP_SECRET`). **Projet rs-connector terminé : T1–T12, 178 tests verts, 0 vulnérabilité.**
 - **2026-07-05** — Ajout de l'argument **`channel`** à `POST /v1/messages` : la connexion cible
   est sélectionnée par type de canal (une app = un jeton + une base URL pour tous ses canaux) ;
   `connection_id` reste optionnel pour lever une ambiguïté (plusieurs connexions du même canal),
@@ -281,7 +281,7 @@ login_attempts     suivi rate-limit / lockout
   `channel_type` au défaut à chaque MAJ de statut → `COALESCE($6, connections.channel_type)`.
   Ajout endpoint admin d'envoi de test (`POST /admin/connections/:id/send`). **Interface complétée** :
   QR rendu dans le dashboard (client-side), champs de credentials **par canal**, statuts en direct,
-  envoi de test depuis l'UI. Proxy Vite `/admin` configurable (DESKRS_BACKEND_PORT). **188 tests verts.**
+  envoi de test depuis l'UI. Proxy Vite `/admin` configurable (RS_CONNECTOR_BACKEND_PORT). **188 tests verts.**
 
 ## 9. Points ouverts (à trancher plus tard)
 

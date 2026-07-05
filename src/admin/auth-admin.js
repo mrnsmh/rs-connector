@@ -11,7 +11,7 @@
 
 const crypto = require('node:crypto');
 
-const COOKIE_NAME = 'deskrs_admin';
+const COOKIE_NAME = 'rsconnector_admin';
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function hashToken(token) {

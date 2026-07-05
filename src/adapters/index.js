@@ -4,7 +4,7 @@
  * Registre des adaptateurs de canal, indexé par `channel_type`.
  *
  * Le connection-manager y résout la fabrique d'adaptateur (`createAdapter`) correspondant
- * au `channel_type` d'une connexion. Ajouter un nouveau canal à deskrs = créer son module
+ * au `channel_type` d'une connexion. Ajouter un nouveau canal à rs-connector = créer son module
  * d'adaptateur (interface { channelType, capabilities, createAdapter }) puis l'enregistrer
  * ici — sans toucher au cœur (connection-manager, db, webhooks).
  */

@@ -1,7 +1,7 @@
 {
-  "name": "deskrs",
+  "name": "rs-connector",
   "version": "0.1.0",
-  "description": "deskrs — hub de messagerie multi-canal indépendant (WhatsApp Baileys + Meta Cloud API, Telegram, Email, ...), brancheable sur plusieurs applications via clé API et webhooks signés.",
+  "description": "rs-connector — hub de messagerie multi-canal indépendant (WhatsApp Baileys + Meta Cloud API, Telegram, Email, ...), brancheable sur plusieurs applications via clé API et webhooks signés.",
   "private": true,
   "type": "commonjs",
   "main": "src/index.js",

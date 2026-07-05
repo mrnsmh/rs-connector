@@ -1,6 +1,6 @@
-# Brancher une application sur deskrs
+# Brancher une application sur rs-connector
 
-Ce guide explique comment une application tierce se branche sur deskrs : obtenir une clé API,
+Ce guide explique comment une application tierce se branche sur rs-connector : obtenir une clé API,
 configurer une connexion de canal, envoyer des messages, et recevoir les événements entrants
 via des webhooks signés.
 
@@ -11,8 +11,8 @@ via des webhooks signés.
   Votre application  ◀──(webhook signé HMAC)──  message.received, message.status_changed, …
 ```
 
-- **Sens sortant** : votre app appelle l'API `/v1` de deskrs, authentifiée par **clé API**.
-- **Sens entrant** : deskrs appelle l'**URL webhook** de votre app, avec une **signature HMAC**
+- **Sens sortant** : votre app appelle l'API `/v1` de rs-connector, authentifiée par **clé API**.
+- **Sens entrant** : rs-connector appelle l'**URL webhook** de votre app, avec une **signature HMAC**
   que vous devez vérifier.
 
 Une **connexion** représente un compte de canal (ex. « le WhatsApp de la boutique A », « le bot
@@ -22,7 +22,7 @@ Telegram support »). Une connexion appartient à **une** application.
 
 ## Étape 1 — Créer une application (back-office)
 
-Dans le dashboard (`/admin`), section **Applications** → *Créer*. deskrs génère une **clé API**
+Dans le dashboard (`/admin`), section **Applications** → *Créer*. rs-connector génère une **clé API**
 affichée **une seule fois** (elle n'est stockée que hachée). Conservez-la comme un secret.
 
 Champs : `name`, `webhookUrl` (optionnel — l'URL de votre app qui recevra les événements).
@@ -49,11 +49,11 @@ l'`application` propriétaire, `webhookUrl` (optionnel, sinon celui de l'applica
 
 ## Étape 3 — Envoyer un message
 
-Indiquez le **canal** à utiliser via `channel` (le type de canal) : deskrs choisit la connexion
+Indiquez le **canal** à utiliser via `channel` (le type de canal) : rs-connector choisit la connexion
 de ce canal appartenant à votre application.
 
 ```bash
-curl -X POST https://deskrs.example.com/v1/messages \
+curl -X POST https://rs-connector.example.com/v1/messages \
   -H "Authorization: Bearer dk_votreCléAPI" \
   -H "Content-Type: application/json" \
   -d '{ "channel": "telegram", "to": "<destinataire>", "text": "Bonjour !" }'
@@ -71,7 +71,7 @@ Lister vos connexions : `GET /v1/connections` (avec le header `Authorization: Be
 
 ## Étape 4 — Recevoir les événements (webhooks)
 
-deskrs envoie un `POST` à l'`webhookUrl` configurée, pour chaque événement :
+rs-connector envoie un `POST` à l'`webhookUrl` configurée, pour chaque événement :
 
 - `message.received` — `{ connectionId, from, messageId, text }`
 - `message.status_changed` — `{ connectionId, messageId, status }`
@@ -87,7 +87,7 @@ La signature est `HMAC-SHA256` du **corps brut** de la requête, avec le secret 
 ```js
 const crypto = require('node:crypto');
 
-function verifyDeskrsWebhook(rawBody, signatureHeader, secret) {
+function verifyRS-ConnectorWebhook(rawBody, signatureHeader, secret) {
   const expected = `sha256=${crypto.createHmac('sha256', secret).update(rawBody).digest('hex')}`;
   const a = Buffer.from(expected);
   const b = Buffer.from(String(signatureHeader || ''));
@@ -95,8 +95,8 @@ function verifyDeskrsWebhook(rawBody, signatureHeader, secret) {
 }
 
 // Express : utilisez le corps BRUT pour la vérification.
-app.post('/webhooks/deskrs', express.raw({ type: 'application/json' }), (req, res) => {
-  if (!verifyDeskrsWebhook(req.body, req.get('X-Webhook-Signature'), process.env.DESKRS_WEBHOOK_SECRET)) {
+app.post('/webhooks/rs-connector', express.raw({ type: 'application/json' }), (req, res) => {
+  if (!verifyRS-ConnectorWebhook(req.body, req.get('X-Webhook-Signature'), process.env.RS-CONNECTOR_WEBHOOK_SECRET)) {
     return res.status(401).end();
   }
   const event = req.get('X-Webhook-Event');
@@ -106,19 +106,19 @@ app.post('/webhooks/deskrs', express.raw({ type: 'application/json' }), (req, re
 });
 ```
 
-Répondez `2xx` rapidement. En cas d'échec (non-2xx / timeout), deskrs **rejoue** l'événement
+Répondez `2xx` rapidement. En cas d'échec (non-2xx / timeout), rs-connector **rejoue** l'événement
 avec un backoff exponentiel (outbox persistante) jusqu'à un nombre max de tentatives.
 
 ---
 
 ## Cas particulier — WhatsApp Cloud API (Meta)
 
-Pour ce canal, **Meta** pousse les messages entrants vers deskrs (et non l'inverse) :
+Pour ce canal, **Meta** pousse les messages entrants vers rs-connector (et non l'inverse) :
 
-1. Côté deskrs, configurez `WHATSAPP_CLOUD_VERIFY_TOKEN` et `WHATSAPP_CLOUD_APP_SECRET`.
-2. Dans la console Meta, déclarez l'URL de webhook : `https://deskrs.example.com/webhooks/whatsapp-cloud`
+1. Côté rs-connector, configurez `WHATSAPP_CLOUD_VERIFY_TOKEN` et `WHATSAPP_CLOUD_APP_SECRET`.
+2. Dans la console Meta, déclarez l'URL de webhook : `https://rs-connector.example.com/webhooks/whatsapp-cloud`
    et le *verify token* identique à `WHATSAPP_CLOUD_VERIFY_TOKEN`.
-3. deskrs valide le `GET` de vérification (renvoie le `hub.challenge`) puis vérifie la signature
+3. rs-connector valide le `GET` de vérification (renvoie le `hub.challenge`) puis vérifie la signature
    `X-Hub-Signature-256` de chaque `POST` (rejet `401` si invalide), et route chaque message vers
    la connexion dont le `phone_number_id` correspond.
 

@@ -29,7 +29,7 @@ function createApp(options = {}) {
   app.get('/health', (req, res) => {
     res.status(200).json({
       status: 'ok',
-      service: 'deskrs',
+      service: 'rs-connector',
       uptimeSeconds: Math.round(process.uptime()),
     });
   });

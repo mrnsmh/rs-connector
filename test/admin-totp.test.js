@@ -37,8 +37,8 @@ test('verifyTotp tolère la fenêtre ±1 pas mais pas au-delà', () => {
 });
 
 test('getOtpauthUri produit une URI otpauth valide', () => {
-  const uri = getOtpauthUri('ABC234', 'admin@deskrs', 'deskrs');
-  assert.ok(uri.startsWith('otpauth://totp/deskrs:admin%40deskrs?'));
+  const uri = getOtpauthUri('ABC234', 'admin@rs-connector', 'rs-connector');
+  assert.ok(uri.startsWith('otpauth://totp/rs-connector:admin%40rs-connector?'));
   assert.ok(uri.includes('secret=ABC234'));
-  assert.ok(uri.includes('issuer=deskrs'));
+  assert.ok(uri.includes('issuer=rs-connector'));
 });

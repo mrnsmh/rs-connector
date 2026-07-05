@@ -1,4 +1,4 @@
--- Schéma initial de deskrs (état des connexions de canal, statuts de message, contacts, outbox).
+-- Schéma initial de rs-connector (état des connexions de canal, statuts de message, contacts, outbox).
 -- Base dédiée exclusivement à ce service — aucune table ERP/CRM/IA ici, uniquement
 -- l'état des connections WhatsApp et le suivi des statuts de message.
 

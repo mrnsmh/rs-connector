@@ -109,7 +109,7 @@ function QrView({ connectionId }) {
 // ---- Envoi de test depuis l'UI ----
 function TestSend({ connectionId }) {
   const [to, setTo] = useState('');
-  const [text, setText] = useState('Test deskrs ✅');
+  const [text, setText] = useState('Test rs-connector ✅');
   const [msg, setMsg] = useState(null);
   const [busy, setBusy] = useState(false);
   async function send(e) {
@@ -228,7 +228,7 @@ export default function Dashboard({ onLogout }) {
   const [info, setInfo] = useState(null);
   const [exChannel, setExChannel] = useState('');
   const [exTo, setExTo] = useState('');
-  const [exText, setExText] = useState('Bonjour depuis deskrs');
+  const [exText, setExText] = useState('Bonjour depuis rs-connector');
 
   const [connId, setConnId] = useState('');
   const [connType, setConnType] = useState('');
@@ -322,7 +322,7 @@ export default function Dashboard({ onLogout }) {
   return (
     <>
       <header className="topbar">
-        <h1>deskrs — back-office</h1>
+        <h1>rs-connector — back-office</h1>
         <button className="secondary" onClick={onLogout}>Déconnexion</button>
       </header>
       <main className="dash">
@@ -378,7 +378,7 @@ export default function Dashboard({ onLogout }) {
           </table>
           <form className="row" onSubmit={createApp} style={{ marginTop: 16, alignItems: 'end' }}>
             <label>Nom de l'application<input value={appName} onChange={(e) => setAppName(e.target.value)} /></label>
-            <label>Webhook URL (optionnel)<input value={appWebhook} onChange={(e) => setAppWebhook(e.target.value)} placeholder="https://mon-app/webhooks/deskrs" /></label>
+            <label>Webhook URL (optionnel)<input value={appWebhook} onChange={(e) => setAppWebhook(e.target.value)} placeholder="https://mon-app/webhooks/rs-connector" /></label>
             <div style={{ flex: '0 0 auto' }}><button type="submit" disabled={!appName}>Créer</button></div>
           </form>
           {revealedKey && (

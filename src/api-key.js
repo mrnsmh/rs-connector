@@ -3,12 +3,12 @@
 /**
  * Génération et hachage des clés API des applications branchées (Task 5).
  *
- * Une clé API est générée UNE fois et montrée UNE fois à l'application ; deskrs n'en
+ * Une clé API est générée UNE fois et montrée UNE fois à l'application ; rs-connector n'en
  * stocke JAMAIS la version en clair, uniquement son hash SHA-256 (comparaison par hash à
  * l'authentification) et un préfixe court non secret servant à l'identifier dans le
  * back-office.
  *
- * Format : "dk_" + 32 octets aléatoires en base64url  (dk = deskrs key).
+ * Format : "dk_" + 32 octets aléatoires en base64url  (dk = rs-connector key).
  */
 
 const crypto = require('node:crypto');

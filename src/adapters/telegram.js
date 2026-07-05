@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Adaptateur de canal Telegram (Bot API) — premier NOUVEAU canal de deskrs, il valide
+ * Adaptateur de canal Telegram (Bot API) — premier NOUVEAU canal de rs-connector, il valide
  * l'abstraction d'adaptateur au-delà de WhatsApp.
  *
  * Interface commune (identique à l'adaptateur WhatsApp) :

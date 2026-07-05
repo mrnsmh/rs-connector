@@ -83,7 +83,7 @@ test('sendMessage envoie un email (from/to/subject/text) et retourne le messageI
   const adapter = createAdapter(mocks, '/tmp', {
     credentials: { smtp, imap },
     autoPoll: false,
-    defaultSubject: 'deskrs',
+    defaultSubject: 'rs-connector',
   });
   await adapter.connect();
   const res = await adapter.sendMessage('client@ext.com', 'Bonjour !');
@@ -92,7 +92,7 @@ test('sendMessage envoie un email (from/to/subject/text) et retourne le messageI
   assert.equal(mocks.sent.length, 1);
   assert.equal(mocks.sent[0].from, 'bot@example.com');
   assert.equal(mocks.sent[0].to, 'client@ext.com');
-  assert.equal(mocks.sent[0].subject, 'deskrs');
+  assert.equal(mocks.sent[0].subject, 'rs-connector');
   assert.equal(mocks.sent[0].text, 'Bonjour !');
 });
 

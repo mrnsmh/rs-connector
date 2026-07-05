@@ -10,7 +10,7 @@ const config = require('./config');
 const logger = pino({
   level: config.logLevel,
   timestamp: pino.stdTimeFunctions.isoTime,
-  base: { service: 'deskrs' },
+  base: { service: 'rs-connector' },
 });
 
 module.exports = logger;

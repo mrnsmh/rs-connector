@@ -10,7 +10,7 @@ const { hashPassword } = require('../src/admin/password');
 
 const PASSWORD = 'good-password-123';
 const KEY = crypto.randomBytes(32).toString('base64');
-const adminCfg = { issuer: 'deskrs', sessionTtlSeconds: 3600, cookieSecure: false };
+const adminCfg = { issuer: 'rs-connector', sessionTtlSeconds: 3600, cookieSecure: false };
 
 function buildMockDb() {
   const users = new Map();
@@ -209,11 +209,11 @@ test('POST /admin/applications/:id/regenerate-key sur app inconnue → 404', asy
 test('GET /admin/info expose l\'endpoint d\'envoi (PUBLIC_BASE_URL)', async () => {
   const db = buildMockDb();
   db._addUser({ username: 'admin', password: PASSWORD });
-  const { agent } = await loginAgent(createApp({ db, admin: adminCfg, publicBaseUrl: 'https://deskrs.example.com/' }));
+  const { agent } = await loginAgent(createApp({ db, admin: adminCfg, publicBaseUrl: 'https://rs-connector.example.com/' }));
   const res = await agent.get('/admin/info');
   assert.equal(res.status, 200);
-  assert.equal(res.body.baseUrl, 'https://deskrs.example.com');
-  assert.equal(res.body.endpoints.sendMessage, 'https://deskrs.example.com/v1/messages');
+  assert.equal(res.body.baseUrl, 'https://rs-connector.example.com');
+  assert.equal(res.body.endpoints.sendMessage, 'https://rs-connector.example.com/v1/messages');
   assert.equal(res.body.detected, false);
 });
 

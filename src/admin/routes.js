@@ -31,7 +31,7 @@ const LOCK_MINUTES = 15;
 
 function createAdminRouter({ db, admin = {}, vault = null, connectionManager = null, adapterRegistry = null, publicBaseUrl = '' } = {}) {
   const router = express.Router();
-  const issuer = admin.issuer || 'deskrs';
+  const issuer = admin.issuer || 'rs-connector';
   const sessionTtlSeconds = admin.sessionTtlSeconds || 12 * 3600;
   const cookieSecure = admin.cookieSecure !== false;
   const requireAdmin = createRequireAdmin(db);

@@ -44,7 +44,7 @@ function buildMockDb() {
   };
 }
 
-const adminCfg = { issuer: 'deskrs', sessionTtlSeconds: 3600, cookieSecure: false };
+const adminCfg = { issuer: 'rs-connector', sessionTtlSeconds: 3600, cookieSecure: false };
 
 test('login : mauvais mot de passe → 401, puis lockout (429) après 5 échecs', async () => {
   const db = buildMockDb();

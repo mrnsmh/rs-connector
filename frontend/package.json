@@ -1,9 +1,9 @@
 {
-  "name": "deskrs-frontend",
+  "name": "rs-connector-frontend",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Back-office deskrs (Vite + React) : login → OTP → dashboard des connexions et applications.",
+  "description": "Back-office rs-connector (Vite + React) : login → OTP → dashboard des connexions et applications.",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

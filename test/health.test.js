@@ -11,7 +11,7 @@ test('GET /health répond 200 avec un statut ok', async () => {
 
   assert.equal(res.status, 200);
   assert.equal(res.body.status, 'ok');
-  assert.equal(res.body.service, 'deskrs');
+  assert.equal(res.body.service, 'rs-connector');
   assert.equal(typeof res.body.uptimeSeconds, 'number');
 });
 

@@ -13,7 +13,7 @@ export default function Login({ onSubmit, error }) {
 
   return (
     <form className="auth-card" onSubmit={submit}>
-      <h1>deskrs</h1>
+      <h1>rs-connector</h1>
       <p className="sub">Back-office — connexion</p>
       <label htmlFor="u">Identifiant</label>
       <input id="u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus />

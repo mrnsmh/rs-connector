@@ -1,8 +1,8 @@
 'use strict';
 
 /**
- * Configuration par variables d'environnement, dédiée à deskrs.
- * deskrs est un service indépendant : il ne partage AUCUNE variable d'environnement,
+ * Configuration par variables d'environnement, dédiée à rs-connector.
+ * rs-connector est un service indépendant : il ne partage AUCUNE variable d'environnement,
  * base de données ni volume avec les autres services (deskassit, desklink, etc.).
  */
 
@@ -23,7 +23,7 @@ const config = {
   logLevel: required('LOG_LEVEL', 'info'),
 
   // Répertoire racine des données d'auth des canaux (ex. auth Baileys), une
-  // sous-arborescence par connexion. Toujours un volume Docker dédié à deskrs.
+  // sous-arborescence par connexion. Toujours un volume Docker dédié à rs-connector.
   authDir: required('AUTH_DIR', '/data/auth'),
 
   // Secret HMAC global de repli pour signer les webhooks sortants (v1). À terme, chaque
@@ -33,7 +33,7 @@ const config = {
   // URL webhook de repli utilisée quand une connexion/application n'en configure pas.
   defaultWebhookUrl: required('DEFAULT_WEBHOOK_URL', ''),
 
-  // URL publique de base du service (ex. https://deskrs.example.com), indiquée aux applications
+  // URL publique de base du service (ex. https://rs-connector.example.com), indiquée aux applications
   // comme endpoint à appeler. Vide ⇒ déduite de la requête (peu fiable derrière un proxy).
   publicBaseUrl: required('PUBLIC_BASE_URL', ''),
 
@@ -50,7 +50,7 @@ const config = {
   // sessionTtlSeconds : durée de vie d'une session ; cookieSecure : flag Secure du cookie
   // (true en prod HTTPS ; mettre ADMIN_COOKIE_SECURE=false en dev HTTP local).
   admin: {
-    issuer: required('ADMIN_TOTP_ISSUER', 'deskrs'),
+    issuer: required('ADMIN_TOTP_ISSUER', 'rs-connector'),
     sessionTtlSeconds: parseInt(required('ADMIN_SESSION_TTL', '43200'), 10),
     cookieSecure: required('ADMIN_COOKIE_SECURE', 'true') !== 'false',
   },
@@ -60,13 +60,13 @@ const config = {
   // refusée (fail-closed).
   credentialsKey: required('CREDENTIALS_ENCRYPTION_KEY', ''),
 
-  // Base Postgres dédiée à deskrs : état des connexions, messages, contacts, outbox.
+  // Base Postgres dédiée à rs-connector : état des connexions, messages, contacts, outbox.
   // Totalement séparée des bases des autres services.
   database: {
     host: required('DB_HOST', 'localhost'),
     port: parseInt(required('DB_PORT', '5432'), 10),
-    database: required('DB_NAME', 'deskrs'),
-    user: required('DB_USER', 'deskrs'),
+    database: required('DB_NAME', 'rs_connector'),
+    user: required('DB_USER', 'rs_connector'),
     password: required('DB_PASSWORD', ''),
   },
 };

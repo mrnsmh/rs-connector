@@ -1,4 +1,4 @@
-// Client de l'API d'administration deskrs. La session est portée par un cookie httpOnly
+// Client de l'API d'administration rs-connector. La session est portée par un cookie httpOnly
 // (credentials: 'include') ; les mutations envoient le jeton CSRF renvoyé au login/OTP.
 
 const BASE = '/admin';

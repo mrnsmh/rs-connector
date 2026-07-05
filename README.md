@@ -1,8 +1,8 @@
-# deskrs
+# rs-connector
 
 **Hub de messagerie multi-canal, indépendant, brancheable sur plusieurs applications.**
 
-deskrs se connecte à des canaux de messagerie (WhatsApp, Telegram, Email…), **normalise** les
+rs-connector se connecte à des canaux de messagerie (WhatsApp, Telegram, Email…), **normalise** les
 messages entrants et sortants derrière une interface unique, et notifie chaque application
 cliente via des **webhooks signés**. Un **back-office sécurisé** (mot de passe + OTP) permet de
 configurer les comptes de canal et les applications branchées.
@@ -44,13 +44,13 @@ node scripts/generate-key.js          # → CREDENTIALS_ENCRYPTION_KEY
 #   éditez .env : DB_PASSWORD, WEBHOOK_SECRET, CREDENTIALS_ENCRYPTION_KEY, WHATSAPP_CLOUD_* ...
 
 # 2) Réseau externe pour les applications clientes (une fois)
-docker network create deskrs-apps
+docker network create rs-connector-apps
 
 # 3) Démarrer
 docker compose up -d --build
 
 # 4) Créer le premier compte admin du back-office
-docker compose exec deskrs node scripts/create-admin.js <identifiant> '<mot-de-passe-fort>'
+docker compose exec rs-connector node scripts/create-admin.js <identifiant> '<mot-de-passe-fort>'
 ```
 
 Le service écoute sur `127.0.0.1:3007` (health : `GET /health`).
@@ -87,11 +87,11 @@ session est `SameSite=Strict` + `Secure`).
 - **Applications (`/v1`, authentifié par clé API)** — voir [`docs/INTEGRATION.md`](./docs/INTEGRATION.md) :
   - `POST /v1/messages` — envoi sortant `{ channel, to, text }` (`connection_id` optionnel, pour lever une ambiguïté)
   - `GET /v1/connections`, `GET /v1/connections/:id`
-- **Webhooks sortants** (deskrs → application) : `message.received`, `message.status_changed`,
+- **Webhooks sortants** (rs-connector → application) : `message.received`, `message.status_changed`,
   `session.connected`, `session.disconnected` — signés `X-Webhook-Signature: sha256=<hex>`
   avec le **secret propre à l'application** (révélé à la création, rotation via le back-office ;
   repli sur `WEBHOOK_SECRET` global si l'app n'en a pas).
-- **Webhook WhatsApp Cloud** (Meta → deskrs) : `GET/POST /webhooks/whatsapp-cloud`.
+- **Webhook WhatsApp Cloud** (Meta → rs-connector) : `GET/POST /webhooks/whatsapp-cloud`.
 - **Back-office (`/admin`, session + OTP + CSRF)** : `login`, `login/otp`, `logout`, `me`,
   `totp/setup`, `totp/enable` ; provisioning `channels`, `applications` (+ `:id/regenerate-key`,
   `:id/rotate-webhook-secret`, `DELETE :id`), `connections` (+ `:id/qr`, `:id/send`, `DELETE :id`),
