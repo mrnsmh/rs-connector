@@ -43,4 +43,6 @@ export const api = {
   sendTest: (id, to, text) => request(`/connections/${encodeURIComponent(id)}/send`, { method: 'POST', body: { to, text } }),
   regenerateKey: (id) => request(`/applications/${encodeURIComponent(id)}/regenerate-key`, { method: 'POST', body: {} }),
   info: () => request('/info'),
+  totpSetup: () => request('/totp/setup', { method: 'POST', body: {} }),
+  totpEnable: (code) => request('/totp/enable', { method: 'POST', body: { code } }),
 };

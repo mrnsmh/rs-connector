@@ -27,6 +27,10 @@ affichée **une seule fois** (elle n'est stockée que hachée). Conservez-la com
 
 Champs : `name`, `webhookUrl` (optionnel — l'URL de votre app qui recevra les événements).
 
+> **Clé perdue ?** Bouton **« Régénérer la clé »** : une nouvelle clé est révélée une fois et
+> l'ancienne est **immédiatement révoquée**. L'**URL de base** à appeler est affichée dans le
+> panneau « Endpoint d'intégration » du dashboard (définissez `PUBLIC_BASE_URL` en production).
+
 ## Étape 2 — Créer une connexion de canal (back-office)
 
 Section **Connexions** → *Créer* : `connectionId` (identifiant libre unique), `channelType`,

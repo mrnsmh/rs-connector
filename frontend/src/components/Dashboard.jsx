@@ -157,6 +157,61 @@ function ConnectionCard({ c }) {
   );
 }
 
+// ---- Bouton copier ----
+function CopyBtn({ text }) {
+  const [ok, setOk] = useState(false);
+  return (
+    <button type="button" className="secondary small" onClick={async () => {
+      try { await navigator.clipboard.writeText(text); setOk(true); setTimeout(() => setOk(false), 1500); } catch { /* clipboard indispo */ }
+    }}>{ok ? 'Copié ✓' : 'Copier'}</button>
+  );
+}
+
+// ---- Activation de la 2FA (TOTP) ----
+function TwoFactor() {
+  const [step, setStep] = useState('idle'); // idle | setup | done
+  const [otpUrl, setOtpUrl] = useState(null);
+  const [secret, setSecret] = useState('');
+  const [code, setCode] = useState('');
+  const [msg, setMsg] = useState(null);
+  async function start() {
+    setMsg(null);
+    try {
+      const r = await api.totpSetup();
+      setSecret(r.secret);
+      setOtpUrl(await QRCode.toDataURL(r.otpauthUri, { width: 220, margin: 1 }));
+      setStep('setup');
+    } catch (e) { setMsg({ ok: false, text: e.message }); }
+  }
+  async function enable(e) {
+    e.preventDefault(); setMsg(null);
+    try {
+      await api.totpEnable(code);
+      setStep('done'); setMsg({ ok: true, text: '2FA activée. Elle sera demandée à la prochaine connexion.' });
+    } catch (e2) { setMsg({ ok: false, text: e2.data && e2.data.error === 'invalid_otp' ? 'Code invalide.' : e2.message }); }
+  }
+  return (
+    <section className="panel">
+      <h2>Sécurité — 2FA (TOTP)</h2>
+      {step === 'idle' && (<>
+        <p className="muted">Ajoutez une vérification par code (Google Authenticator, etc.) à la connexion admin.</p>
+        <button className="secondary small" onClick={start}>Configurer la 2FA</button>
+      </>)}
+      {step === 'setup' && (<>
+        <p className="muted">1. Scannez ce QR avec votre application d'authentification (ou saisissez la clé) :</p>
+        {otpUrl && <div className="qrbox"><img src={otpUrl} alt="QR 2FA" style={{ width: 220, height: 220 }} /></div>}
+        <code className="key">{secret}</code>
+        <form className="inline-row" onSubmit={enable} style={{ marginTop: 12 }}>
+          <label>2. Code à 6 chiffres<input inputMode="numeric" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} /></label>
+          <button type="submit" disabled={code.length < 6}>Activer</button>
+        </form>
+      </>)}
+      {step === 'done' && <p className="ok">✓ 2FA activée</p>}
+      {msg && <div className={msg.ok ? 'notice' : 'error'}>{msg.text}</div>}
+    </section>
+  );
+}
+
 export default function Dashboard({ onLogout }) {
   const [channels, setChannels] = useState([]);
   const [apps, setApps] = useState([]);
@@ -301,6 +356,7 @@ export default function Dashboard({ onLogout }) {
             <div className="notice">
               Clé API {revealedFor ? `de « ${revealedFor} »` : ''} (copiez-la maintenant, elle ne sera plus affichée) :
               <code className="key">{revealedKey}</code>
+              <div style={{ marginTop: 8 }}><CopyBtn text={revealedKey} /></div>
               {info && <div className="muted" style={{ marginTop: 8 }}>Elle est déjà insérée dans l'« Exemple d'appel » du panneau Endpoint ci-dessus.</div>}
             </div>
           )}
@@ -335,6 +391,8 @@ export default function Dashboard({ onLogout }) {
           </form>
           {connMsg && <div className="notice">{connMsg}</div>}
         </section>
+
+        <TwoFactor />
       </main>
     </>
   );

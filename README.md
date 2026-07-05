@@ -60,7 +60,7 @@ Le service écoute sur `127.0.0.1:3007` (health : `GET /health`).
 ```bash
 # Backend
 npm install
-npm test                     # 185 tests
+npm test                     # 191 tests
 DB_HOST=localhost DB_PASSWORD=... CREDENTIALS_ENCRYPTION_KEY=$(node scripts/generate-key.js) \
   ADMIN_COOKIE_SECURE=false npm start
 
@@ -91,7 +91,10 @@ session est `SameSite=Strict` + `Secure`).
   `session.connected`, `session.disconnected` — signés `X-Webhook-Signature: sha256=<hex>`.
 - **Webhook WhatsApp Cloud** (Meta → deskrs) : `GET/POST /webhooks/whatsapp-cloud`.
 - **Back-office (`/admin`, session + OTP + CSRF)** : `login`, `login/otp`, `logout`, `me`,
-  `totp/setup`, `totp/enable`, et provisioning `channels` / `applications` / `connections`.
+  `totp/setup`, `totp/enable` ; provisioning `channels`, `applications` (+ `:id/regenerate-key`),
+  `connections` (+ `:id/qr`, `:id/send`), et `info` (URL de base + endpoints détectés pour les apps).
+  Le dashboard affiche l'endpoint d'intégration détecté — définissez `PUBLIC_BASE_URL` en production
+  (derrière un proxy, la détection automatique ne voit pas l'URL publique).
 
 ## Sécurité
 
@@ -107,7 +110,7 @@ session est `SameSite=Strict` + `Secure`).
 ## Tests
 
 ```bash
-npm test        # 185 tests (node:test), sans réseau réel (dépendances mockées)
+npm test        # 191 tests (node:test), sans réseau réel (dépendances mockées)
 ```
 
 ## Structure
