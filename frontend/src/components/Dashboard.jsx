@@ -214,6 +214,42 @@ function TwoFactor() {
   );
 }
 
+// ---- Changement du mot de passe admin ----
+function ChangePassword() {
+  const [current, setCurrent] = useState('');
+  const [next, setNext] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [msg, setMsg] = useState(null);
+  async function submit(e) {
+    e.preventDefault(); setMsg(null);
+    if (next.length < 10) { setMsg({ ok: false, text: 'Le nouveau mot de passe doit faire au moins 10 caractères.' }); return; }
+    if (next !== confirm) { setMsg({ ok: false, text: 'La confirmation ne correspond pas.' }); return; }
+    try {
+      await api.changePassword(current, next);
+      setMsg({ ok: true, text: 'Mot de passe modifié avec succès.' });
+      setCurrent(''); setNext(''); setConfirm('');
+    } catch (e2) {
+      const code = e2.data && e2.data.error;
+      const text = code === 'invalid_current_password' ? 'Mot de passe actuel incorrect.'
+        : code === 'weak_password' ? 'Nouveau mot de passe trop court (10 caractères minimum).'
+        : e2.message;
+      setMsg({ ok: false, text });
+    }
+  }
+  return (
+    <section className="panel">
+      <h2>Sécurité — Mot de passe</h2>
+      <form onSubmit={submit}>
+        <label>Mot de passe actuel<input type="password" autoComplete="current-password" value={current} onChange={(e) => setCurrent(e.target.value)} /></label>
+        <label>Nouveau mot de passe<input type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} /></label>
+        <label>Confirmer<input type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} /></label>
+        <button type="submit" disabled={!current || !next || !confirm} style={{ marginTop: 8 }}>Changer le mot de passe</button>
+      </form>
+      {msg && <div className={msg.ok ? 'notice' : 'error'}>{msg.text}</div>}
+    </section>
+  );
+}
+
 export default function Dashboard({ onLogout }) {
   const [channels, setChannels] = useState([]);
   const [apps, setApps] = useState([]);
@@ -438,6 +474,7 @@ export default function Dashboard({ onLogout }) {
         </section>
 
         <TwoFactor />
+        <ChangePassword />
       </main>
     </>
   );

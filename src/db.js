@@ -292,6 +292,14 @@ function createDb(pool) {
     return result.rows[0];
   }
 
+  async function updateAdminPassword(id, passwordHash) {
+    const result = await pool.query(
+      'UPDATE admin_users SET password_hash = $2, updated_at = now() WHERE id = $1 RETURNING id',
+      [id, passwordHash],
+    );
+    return result.rows[0] || null;
+  }
+
   async function createAdminSession({ tokenHash, adminUserId, csrfToken, otpVerified, expiresAt }) {
     const result = await pool.query(
       `INSERT INTO admin_sessions (id, admin_user_id, csrf_token, otp_verified, expires_at)
@@ -373,6 +381,7 @@ function createDb(pool) {
     getAdminUserByUsername,
     getAdminUserById,
     setAdminTotp,
+    updateAdminPassword,
     createAdminSession,
     getAdminSession,
     markAdminSessionOtpVerified,

@@ -15,7 +15,7 @@
 const crypto = require('node:crypto');
 const express = require('express');
 const logger = require('../logger');
-const { verifyPassword } = require('./password');
+const { verifyPassword, hashPassword } = require('./password');
 const { generateSecret, verifyTotp, getOtpauthUri } = require('./totp');
 const { generateApiKey, generateWebhookSecret } = require('../api-key');
 const {
@@ -111,6 +111,24 @@ function createAdminRouter({ db, admin = {}, vault = null, connectionManager = n
     username: req.adminUser.username,
     totpEnabled: req.adminUser.totp_enabled,
   }));
+
+  // Changement du mot de passe admin (session OTP-vérifiée + jeton CSRF exigés par requireAdmin).
+  router.post('/change-password', requireAdmin, async (req, res) => {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'missing_fields' });
+    if (typeof newPassword !== 'string' || newPassword.length < 10) return res.status(400).json({ error: 'weak_password' });
+    try {
+      const user = await db.getAdminUserById(req.adminUser.id);
+      if (!user || !verifyPassword(currentPassword, user.password_hash)) {
+        return res.status(401).json({ error: 'invalid_current_password' });
+      }
+      await db.updateAdminPassword(user.id, hashPassword(newPassword));
+      return res.status(200).json({ ok: true });
+    } catch (err) {
+      logger.error({ err: err.message }, 'Erreur changement mot de passe');
+      return res.status(500).json({ error: 'internal' });
+    }
+  });
 
   router.post('/totp/setup', requireAdmin, async (req, res) => {
     try {

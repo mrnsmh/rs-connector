@@ -45,6 +45,7 @@ export const api = {
   info: () => request('/info'),
   totpSetup: () => request('/totp/setup', { method: 'POST', body: {} }),
   totpEnable: (code) => request('/totp/enable', { method: 'POST', body: { code } }),
+  changePassword: (currentPassword, newPassword) => request('/change-password', { method: 'POST', body: { currentPassword, newPassword } }),
   deleteConnection: (id) => request(`/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   deleteApplication: (id) => request(`/applications/${encodeURIComponent(id)}`, { method: 'DELETE' }),
   rotateWebhookSecret: (id) => request(`/applications/${encodeURIComponent(id)}/rotate-webhook-secret`, { method: 'POST', body: {} }),

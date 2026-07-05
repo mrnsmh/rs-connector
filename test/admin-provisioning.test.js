@@ -30,6 +30,7 @@ function buildMockDb() {
     async getAdminUserByUsername(u) { return [...users.values()].find((x) => x.username === u) || null; },
     async getAdminUserById(id) { return users.get(id) || null; },
     async setAdminTotp(id, { totpSecret, totpEnabled }) { const u = users.get(id); if (u) { u.totp_secret = totpSecret; u.totp_enabled = totpEnabled; } return u; },
+    async updateAdminPassword(id, passwordHash) { const u = users.get(id); if (u) u.password_hash = passwordHash; return u ? { id } : null; },
     async createAdminSession(s) { sessions.set(s.tokenHash, { id: s.tokenHash, admin_user_id: s.adminUserId, csrf_token: s.csrfToken, otp_verified: s.otpVerified, expires_at: s.expiresAt }); return sessions.get(s.tokenHash); },
     async getAdminSession(h) { return sessions.get(h) || null; },
     async markAdminSessionOtpVerified(h) { const s = sessions.get(h); if (s) s.otp_verified = true; },
@@ -263,4 +264,48 @@ test('POST /admin/applications/:id/rotate-webhook-secret régénère le secret',
   assert.equal(res.status, 200);
   assert.ok(res.body.webhookSecret.startsWith('whsec_'));
   assert.notEqual(res.body.webhookSecret, created.body.webhookSecret);
+});
+
+test('POST /admin/change-password change le mot de passe (ancien KO, nouveau OK ensuite)', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg }));
+  const res = await agent.post('/admin/change-password').set('X-CSRF-Token', csrf).send({ currentPassword: PASSWORD, newPassword: 'nouveau-mdp-123' });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  const relogOld = await supertest(createApp({ db, admin: adminCfg })).post('/admin/login').send({ username: 'admin', password: PASSWORD });
+  assert.equal(relogOld.status, 401);
+  const relogNew = await supertest(createApp({ db, admin: adminCfg })).post('/admin/login').send({ username: 'admin', password: 'nouveau-mdp-123' });
+  assert.equal(relogNew.status, 200);
+});
+
+test('POST /admin/change-password avec mauvais mot de passe actuel → 401', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg }));
+  const res = await agent.post('/admin/change-password').set('X-CSRF-Token', csrf).send({ currentPassword: 'faux-mdp', newPassword: 'nouveau-mdp-123' });
+  assert.equal(res.status, 401);
+  assert.equal(res.body.error, 'invalid_current_password');
+});
+
+test('POST /admin/change-password refuse un nouveau mot de passe trop court → 400', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg }));
+  const res = await agent.post('/admin/change-password').set('X-CSRF-Token', csrf).send({ currentPassword: PASSWORD, newPassword: 'court' });
+  assert.equal(res.status, 400);
+  assert.equal(res.body.error, 'weak_password');
+});
+
+test('POST /admin/change-password sans CSRF → 403', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent } = await loginAgent(createApp({ db, admin: adminCfg }));
+  const res = await agent.post('/admin/change-password').send({ currentPassword: PASSWORD, newPassword: 'nouveau-mdp-123' });
+  assert.equal(res.status, 403);
+});
+
+test('POST /admin/change-password sans session → 401', async () => {
+  const res = await supertest(createApp({ db: buildMockDb(), admin: adminCfg })).post('/admin/change-password').send({ currentPassword: 'x', newPassword: 'nouveau-mdp-123' });
+  assert.equal(res.status, 401);
 });
