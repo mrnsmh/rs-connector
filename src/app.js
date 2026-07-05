@@ -20,7 +20,7 @@ const path = require('node:path');
  * @param {object} [options.db] - Accès DB (Task 3), optionnel selon les endpoints appelés.
  */
 function createApp(options = {}) {
-  const { connectionManager, db, rateLimiter, whatsappCloud, admin, vault, publicBaseUrl = '' } = options;
+  const { connectionManager, db, rateLimiter, whatsappCloud, admin, vault, publicBaseUrl = '', workerToken = process.env.WORKER_TOKEN } = options;
   const app = express();
 
   // Derrière un reverse-proxy (nginx + Cloudflare) : tenir compte des en-têtes X-Forwarded-*
@@ -270,6 +270,42 @@ function createApp(options = {}) {
     } catch (err) {
       logger.error({ err: err.message, connectionId: req.params.connectionId }, 'Erreur détail connexion /v1');
       return res.status(500).json({ error: 'Erreur interne' });
+    }
+  });
+
+  // ==========================================================================
+  // API interne worker (migration Django) : le plan de controle Django delegue l'envoi
+  // sortant ICI. Authentifiee par l'en-tete X-Worker-Token (jamais exposee au client).
+  // La resolution/scoping profil est faite en amont par Django ; le worker envoie sur la
+  // connexion demandee via la session live existante (aucune session dupliquee).
+  // ==========================================================================
+  function requireWorkerToken(req, res, next) {
+    if (!workerToken) return res.status(503).json({ error: 'worker_token_not_configured' });
+    if (req.headers['x-worker-token'] !== workerToken) return res.status(401).json({ error: 'unauthorized' });
+    return next();
+  }
+
+  app.post('/internal/send', requireWorkerToken, async (req, res) => {
+    if (!requireConnectionManager(req, res)) return;
+    const { connectionId, to, text } = req.body || {};
+    if (!connectionId || !to || !text) {
+      return res.status(400).json({ error: 'missing_fields', message: 'connectionId, to et text sont requis' });
+    }
+    const session = connectionManager.get(connectionId);
+    if (!session) {
+      return res.status(409).json({ error: 'connection_not_active', message: 'Connexion non active (aucune session en cours)' });
+    }
+    try {
+      const result = rateLimiter
+        ? await rateLimiter.schedule(connectionId, () => session.sendMessage(to, text))
+        : await session.sendMessage(to, text);
+      return res.status(200).json(result);
+    } catch (err) {
+      if (err instanceof LidUnresolvedError) {
+        return res.status(422).json({ error: 'lid_unresolved', lid: err.lid });
+      }
+      logger.error({ err: err.message, connectionId }, 'Envoi interne worker echoue');
+      return res.status(500).json({ error: 'send_failed' });
     }
   });
 
