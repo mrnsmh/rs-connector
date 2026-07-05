@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { api } from '../api';
+import Logo from './Logo.jsx';
 
 const CHANNEL_LABELS = {
-  whatsapp_baileys: '📱 WhatsApp (Baileys · QR)',
-  whatsapp_cloud: '☁️ WhatsApp Cloud (Meta)',
-  telegram: '✈️ Telegram',
-  email: '✉️ Email (SMTP/IMAP)',
+  whatsapp_baileys: 'WhatsApp · Baileys (QR)',
+  whatsapp_cloud: 'WhatsApp Cloud · Meta',
+  telegram: 'Telegram',
+  email: 'Email · SMTP/IMAP',
 };
 const label = (t) => CHANNEL_LABELS[t] || t;
 
@@ -360,9 +361,12 @@ export default function Dashboard({ onLogout }) {
   return (
     <>
       <header className="topbar">
-        <div className="brand"><span className="logo">🔗</span> <b>RS-Connector</b> <span className="sub">back-office</span></div>
+        <div className="brand">
+          <span className="mark"><Logo size={30} /></span>
+          <span className="word"><b>RS-Connector</b><span className="sub">Console d'administration</span></span>
+        </div>
         <span className="spacer" />
-        {meUser && <span className="who">👤 {meUser}</span>}
+        {meUser && <span className="who">Connecté : <b>{meUser}</b></span>}
         <button className="secondary" onClick={onLogout}>Déconnexion</button>
       </header>
       <main className="dash">

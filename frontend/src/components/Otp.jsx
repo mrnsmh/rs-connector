@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Logo from './Logo.jsx';
 
 export default function Otp({ onSubmit, error }) {
   const [code, setCode] = useState('');
@@ -12,6 +13,7 @@ export default function Otp({ onSubmit, error }) {
 
   return (
     <form className="auth-card" onSubmit={submit}>
+      <div className="auth-logo"><Logo size={46} /></div>
       <h1>Vérification en deux étapes</h1>
       <p className="sub">Saisissez le code à 6 chiffres de votre application d'authentification.</p>
       <label htmlFor="c">Code OTP</label>

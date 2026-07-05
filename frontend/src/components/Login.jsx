@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Logo from './Logo.jsx';
 
 export default function Login({ onSubmit, error }) {
   const [username, setUsername] = useState('');
@@ -13,8 +14,9 @@ export default function Login({ onSubmit, error }) {
 
   return (
     <form className="auth-card" onSubmit={submit}>
-      <h1>rs-connector</h1>
-      <p className="sub">Back-office — connexion</p>
+      <div className="auth-logo"><Logo size={46} /></div>
+      <h1>RS-Connector</h1>
+      <p className="sub">Console d'administration</p>
       <label htmlFor="u">Identifiant</label>
       <input id="u" value={username} onChange={(e) => setUsername(e.target.value)} autoComplete="username" autoFocus />
       <label htmlFor="p">Mot de passe</label>
