@@ -7,7 +7,7 @@ const createApp = require('../src/app');
 const { hashApiKey } = require('../src/api-key');
 
 const API_KEY = 'dk_app1-secret';
-const APP1 = { id: 'app-1', name: 'App One', status: 'active', api_key_hash: hashApiKey(API_KEY), default_connection_id: 'c1' };
+const APP1 = { id: 'app-1', name: 'App One', status: 'active', api_key_hash: hashApiKey(API_KEY) };
 const authHeader = { Authorization: `Bearer ${API_KEY}` };
 
 // Deux connexions : c1 appartient à app-1 (l'appelante), c2 à app-2 (une autre app).
@@ -97,7 +97,15 @@ test('GET /v1/connections ne liste que les connexions de l\'app appelante', asyn
   assert.equal(res.body.connexions.length, 1);
   assert.equal(res.body.connexions[0].connectionId, 'c1');
   assert.equal(res.body.connexions[0].channelType, 'whatsapp_baileys');
-  // Le canal par défaut de l'app est exposé (pour que desklink le reflète).
+});
+
+test('GET /v1/connections expose le canal par d\'efaut de l\'app (defaultConnectionId + isDefault)', async () => {
+  const db = buildDb();
+  const appWithDefault = { ...APP1, default_connection_id: 'c1' };
+  db.getApplicationByApiKeyHash = async (hash) => (hash === APP1.api_key_hash ? appWithDefault : null);
+  const app = createApp({ db, connectionManager: buildConnectionManager([]) });
+  const res = await supertest(app).get('/v1/connections').set(authHeader);
+  assert.equal(res.status, 200);
   assert.equal(res.body.defaultConnectionId, 'c1');
   assert.equal(res.body.connexions[0].isDefault, true);
 });
