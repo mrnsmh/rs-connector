@@ -256,13 +256,15 @@ function createApp(options = {}) {
     try {
       const rows = await db.listConnectionsByApplication(req.application.id);
       const liveStates = connectionManager ? connectionManager.getAllStates() : {};
+      const defaultConnectionId = req.application.default_connection_id || null;
       const connexions = rows.map((r) => ({
         connectionId: r.connection_id,
         channelType: r.channel_type,
         status: r.status,
+        isDefault: r.connection_id === defaultConnectionId,
         state: liveStates[r.connection_id] || null,
       }));
-      return res.status(200).json({ connexions });
+      return res.status(200).json({ connexions, defaultConnectionId });
     } catch (err) {
       logger.error({ err: err.message }, 'Erreur liste connexions /v1');
       return res.status(500).json({ error: 'Erreur interne' });
