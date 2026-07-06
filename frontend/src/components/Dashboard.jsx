@@ -136,7 +136,7 @@ function TestSend({ connectionId }) {
 }
 
 // ---- Carte d'une connexion ----
-function ConnectionCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault }) {
+function ConnectionCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault, apps, onReassign }) {
   const [tab, setTab] = useState(null); // 'qr' | 'send' | null
   const status = (c.state && c.state.status) || c.status;
   const isBaileys = c.channelType === 'whatsapp_baileys';
@@ -159,6 +159,15 @@ function ConnectionCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault 
         )}
         <span className="spacer" />
         <button className="secondary small danger" onClick={onDelete}>Supprimer</button>
+      </div>
+      <div className="actions-inline">
+        <label className="conn-app" title="Application propriétaire de cette connexion. La réassignation ne coupe pas la session (mise à jour base uniquement).">
+          <span className="muted small">Application</span>
+          <select value={c.applicationId || ''} onChange={(e) => onReassign(e.target.value)}>
+            <option value="">— Aucune —</option>
+            {(apps || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+          </select>
+        </label>
       </div>
       {tab === 'qr' && <QrView connectionId={c.connectionId} />}
       {tab === 'send' && <TestSend connectionId={c.connectionId} />}
@@ -361,6 +370,18 @@ export default function Dashboard({ onLogout }) {
     }
   }
 
+  // Réassignation de l'application d'une connexion (mise à jour base uniquement, sans couper
+  // la session live). applicationId vide => détache la connexion de toute application.
+  async function reassignApp(c, applicationId) {
+    setErr(null);
+    try {
+      await api.setConnectionApplication(c.connectionId, applicationId || null);
+      refresh();
+    } catch (e2) {
+      setErr(e2.message);
+    }
+  }
+
   async function createConn(e) {
     e.preventDefault();
     setErr(null); setConnMsg(null);
@@ -483,6 +504,8 @@ export default function Dashboard({ onLogout }) {
                 canBeDefault={!!c.applicationId}
                 isDefault={!!c.applicationId && defaultByApp[c.applicationId] === c.connectionId}
                 onToggleDefault={() => toggleDefault(c)}
+                apps={apps}
+                onReassign={(appId) => reassignApp(c, appId)}
               />
             ))}
             {connections.length === 0 && <p className="muted">Aucune connexion pour le moment.</p>}

@@ -62,6 +62,17 @@ function createDb(pool) {
     return result.rows[0] || null;
   }
 
+  // Réassignation de l'application d'une connexion (DB UNIQUEMENT — ne touche PAS la
+  // session live, contrairement à upsertConnection/POST /connections). `applicationId`
+  // peut être null pour détacher la connexion de toute application.
+  async function setConnectionApplication(connectionId, applicationId) {
+    const result = await pool.query(
+      'UPDATE connections SET application_id = $2, updated_at = now() WHERE connection_id = $1 RETURNING *',
+      [connectionId, applicationId],
+    );
+    return result.rows[0] || null;
+  }
+
   // Régénération de la clé API d'une application : remplace le hash + le préfixe (l'ancienne
   // clé devient invalide immédiatement). La clé en clair n'est jamais stockée.
   async function updateApplicationApiKey(id, { apiKeyHash, apiKeyPrefix }) {
@@ -371,6 +382,7 @@ function createDb(pool) {
     getApplicationByApiKeyHash,
     getApplicationById,
     setApplicationDefaultConnection,
+    setConnectionApplication,
     listApplications,
     listConnectionsByApplication,
     getConnectionForApplication,

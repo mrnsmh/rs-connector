@@ -348,6 +348,31 @@ function createAdminRouter({ db, admin = {}, vault = null, connectionManager = n
     }
   });
 
+  // Réassignation de l'application d'une connexion : met à jour UNIQUEMENT la base.
+  // Contrairement à POST /connections (qui fait un upsert + relance la session Baileys),
+  // cet endpoint ne touche NI connectionManager NI la session live — la connexion reste
+  // connectée. `applicationId` peut être vide/null pour détacher la connexion.
+  router.post('/connections/:connectionId/application', requireAdmin, async (req, res) => {
+    try {
+      const conn = await db.getConnection(req.params.connectionId);
+      if (!conn) return res.status(404).json({ error: 'connection_not_found' });
+      const appId = (req.body && req.body.applicationId) || null;
+      if (appId) {
+        const app = await db.getApplicationById(appId);
+        if (!app) return res.status(404).json({ error: 'application_not_found' });
+      }
+      const updated = await db.setConnectionApplication(conn.connection_id, appId);
+      return res.status(200).json({
+        ok: true,
+        connectionId: updated.connection_id,
+        applicationId: updated.application_id,
+      });
+    } catch (err) {
+      logger.error({ err: err.message, connectionId: req.params.connectionId }, 'Erreur réassignation application connexion');
+      return res.status(500).json({ error: 'internal' });
+    }
+  });
+
   // Suppression d'une connexion : stoppe la session live puis retire la ligne DB.
   router.delete('/connections/:connectionId', requireAdmin, async (req, res) => {
     const id = req.params.connectionId;

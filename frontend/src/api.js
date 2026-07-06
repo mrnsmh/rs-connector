@@ -51,4 +51,5 @@ export const api = {
   rotateWebhookSecret: (id) => request(`/applications/${encodeURIComponent(id)}/rotate-webhook-secret`, { method: 'POST', body: {} }),
   setDefaultConnection: (id) => request(`/connections/${encodeURIComponent(id)}/default`, { method: 'POST', body: {} }),
   unsetDefaultConnection: (id) => request(`/connections/${encodeURIComponent(id)}/default`, { method: 'DELETE' }),
+  setConnectionApplication: (id, applicationId) => request(`/connections/${encodeURIComponent(id)}/application`, { method: 'POST', body: { applicationId: applicationId || null } }),
 };

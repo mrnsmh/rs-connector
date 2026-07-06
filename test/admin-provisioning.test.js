@@ -60,6 +60,7 @@ function buildMockDb() {
     async deleteConnection(id) { return connections.delete(id); },
     async getConnection(id) { return connections.get(id) || null; },
     async getApplicationById(id) { return apps.find((x) => x.id === id) || null; },
+    async setConnectionApplication(id, applicationId) { const c = connections.get(id); if (c) c.application_id = applicationId; return c || null; },
     async setApplicationDefaultConnection(id, connectionId) { const a = apps.find((x) => x.id === id); if (a) a.default_connection_id = connectionId; return a || null; },
     async updateApplicationWebhookSecret(id, { webhookSecret }) { const a = apps.find((x) => x.id === id); if (!a) return null; a.webhook_secret = webhookSecret; return a; },
     async listConnections() { return [...connections.values()]; },
@@ -371,5 +372,81 @@ test('POST /admin/connections/:id/default sans CSRF → 403', async () => {
   const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
   await appWithConn(agent, csrf);
   const res = await agent.post('/admin/connections/c1/default').send({});
+  assert.equal(res.status, 403);
+});
+
+// ---- Réassignation de l'application d'une connexion (DB-only, sans couper la session) ----
+
+test('POST /admin/connections/:id/application réassigne la connexion à une autre application', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  const app1 = await appWithConn(agent, csrf);
+  const app2 = (await agent.post('/admin/applications').set('X-CSRF-Token', csrf).send({ name: 'B' })).body.id;
+  const res = await agent.post('/admin/connections/c1/application').set('X-CSRF-Token', csrf).send({ applicationId: app2 });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.ok, true);
+  assert.equal(res.body.applicationId, app2);
+  const list = await agent.get('/admin/connections');
+  assert.equal(list.body.connexions.find((x) => x.connectionId === 'c1').applicationId, app2);
+});
+
+test('POST /admin/connections/:id/application avec applicationId vide détache la connexion', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  await appWithConn(agent, csrf);
+  const res = await agent.post('/admin/connections/c1/application').set('X-CSRF-Token', csrf).send({ applicationId: null });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.applicationId, null);
+});
+
+test('POST /admin/connections/:id/application sur connexion inconnue → 404 connection_not_found', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager() }));
+  const res = await agent.post('/admin/connections/nope/application').set('X-CSRF-Token', csrf).send({ applicationId: 'app1' });
+  assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'connection_not_found');
+});
+
+test('POST /admin/connections/:id/application avec application inconnue → 404 application_not_found', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  await appWithConn(agent, csrf);
+  const res = await agent.post('/admin/connections/c1/application').set('X-CSRF-Token', csrf).send({ applicationId: 'does-not-exist' });
+  assert.equal(res.status, 404);
+  assert.equal(res.body.error, 'application_not_found');
+});
+
+test('POST /admin/connections/:id/application ne touche PAS la session live (pitfall #1)', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  // connectionManager qui échoue si on tente de recréer/interroger/couper une session :
+  // l'endpoint de réassignation ne doit faire qu'un UPDATE en base.
+  const cm = {
+    async getOrCreate() { throw new Error('getOrCreate interdit lors d’une réassignation'); },
+    get() { throw new Error('get interdit'); },
+    remove() { throw new Error('remove interdit'); },
+    getAllStates() { return {}; },
+  };
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: cm, vault: createVault(KEY) }));
+  const app1 = (await agent.post('/admin/applications').set('X-CSRF-Token', csrf).send({ name: 'A' })).body.id;
+  const app2 = (await agent.post('/admin/applications').set('X-CSRF-Token', csrf).send({ name: 'B' })).body.id;
+  // Connexion pré-existante seedée directement (sans passer par POST /connections qui, lui,
+  // démarre une session via le connectionManager).
+  db._connections.set('c1', { connection_id: 'c1', channel_type: 'telegram', application_id: app1, status: 'connected' });
+  const res = await agent.post('/admin/connections/c1/application').set('X-CSRF-Token', csrf).send({ applicationId: app2 });
+  assert.equal(res.status, 200);
+  assert.equal(res.body.applicationId, app2);
+});
+
+test('POST /admin/connections/:id/application sans CSRF → 403', async () => {
+  const db = buildMockDb();
+  db._addUser({ username: 'admin', password: PASSWORD });
+  const { agent, csrf } = await loginAgent(createApp({ db, admin: adminCfg, connectionManager: buildConnectionManager(), vault: createVault(KEY) }));
+  await appWithConn(agent, csrf);
+  const res = await agent.post('/admin/connections/c1/application').send({ applicationId: 'x' });
   assert.equal(res.status, 403);
 });
