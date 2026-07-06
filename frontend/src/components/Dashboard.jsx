@@ -427,14 +427,14 @@ export default function Dashboard({ onLogout }) {
             <h2>Endpoint d'intégration</h2>
             <p className="muted">URL de base {info.detected ? '(détectée automatiquement — définissez PUBLIC_BASE_URL en production derrière un proxy)' : '(configurée)'} :</p>
             <code className="key">{info.baseUrl}</code>
-            <table style={{ marginTop: 12 }}>
+            <div className="table-wrap"><table style={{ marginTop: 12 }}>
               <tbody>
                 <tr><td>Envoi de message</td><td><code>POST {info.endpoints.sendMessage}</code></td></tr>
                 <tr><td>Lister les connexions</td><td><code>GET {info.endpoints.listConnections}</code></td></tr>
                 <tr><td>Webhook WhatsApp Cloud</td><td><code>{info.endpoints.whatsappCloudWebhook}</code></td></tr>
                 <tr><td>Authentification</td><td><code>{info.auth}</code></td></tr>
               </tbody>
-            </table>
+            </table></div>
             <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>Exemple d'appel — arguments &amp; choix du canal</h3>
             <div className="row">
               <label>Canal
@@ -452,7 +452,7 @@ export default function Dashboard({ onLogout }) {
 
         <section className="panel">
           <h2>Applications</h2>
-          <table>
+          <div className="table-wrap"><table>
             <thead><tr><th>Nom</th><th>Clé (préfixe)</th><th>Webhook</th><th>Statut</th><th></th></tr></thead>
             <tbody>
               {apps.map((a) => (
@@ -470,7 +470,7 @@ export default function Dashboard({ onLogout }) {
               ))}
               {apps.length === 0 && <tr><td colSpan={5} className="muted">Aucune application</td></tr>}
             </tbody>
-          </table>
+          </table></div>
           <form className="row" onSubmit={createApp} style={{ marginTop: 16, alignItems: 'end' }}>
             <label>Nom de l'application<input value={appName} onChange={(e) => setAppName(e.target.value)} /></label>
             <label>Webhook URL (optionnel)<input value={appWebhook} onChange={(e) => setAppWebhook(e.target.value)} placeholder="https://mon-app/webhooks/rs-connector" /></label>
