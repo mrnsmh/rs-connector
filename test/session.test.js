@@ -10,7 +10,7 @@ const { createSession, DEFAULT_POSSIBLY_BANNED_THRESHOLD } = require('../src/ses
  * jamais ouvert. `sockEmitter` permet de déclencher manuellement des événements
  * connection.update / creds.update depuis les tests.
  */
-function buildMockDeps() {
+function buildMockDeps({ registered = false } = {}) {
   const sockEmitter = new EventEmitter();
   const mockSock = {
     ev: {
@@ -23,7 +23,7 @@ function buildMockDeps() {
   const deps = {
     makeWASocket: () => mockSock,
     useMultiFileAuthState: async () => ({
-      state: { creds: {}, keys: {} },
+      state: { creds: registered ? { registered: true } : {}, keys: {} },
       saveCreds: async () => {},
     }),
     fetchLatestBaileysVersion: async () => ({ version: [2, 3000, 0], isLatest: true }),
@@ -94,7 +94,7 @@ test('logout (401) déclenche le nettoyage de l\'auth et réinitialise le compte
 });
 
 test('bascule vers possibly_banned après N échecs de reconnexion consécutifs', async () => {
-  const { deps, sockEmitter } = buildMockDeps();
+  const { deps, sockEmitter } = buildMockDeps({ registered: true });
   const threshold = 3;
   const session = createSession(deps, '/tmp/test-auth', { possiblyBannedThreshold: threshold, autoReconnect: false });
 
@@ -123,7 +123,7 @@ test('bascule vers possibly_banned après N échecs de reconnexion consécutifs'
 });
 
 test('le seuil par défaut est appliqué si aucune option n\'est fournie', async () => {
-  const { deps, sockEmitter } = buildMockDeps();
+  const { deps, sockEmitter } = buildMockDeps({ registered: true });
   const session = createSession(deps, '/tmp/test-auth', { autoReconnect: false });
 
   await session.connect();
@@ -141,4 +141,25 @@ test('le seuil par défaut est appliqué si aucune option n\'est fournie', async
     lastDisconnect: { error: { output: { statusCode: 500 } } },
   });
   assert.equal(session.getState().status, 'possibly_banned');
+});
+
+test('appairage en cours (non enregistré) : les timeouts 408 ne déclenchent PAS possibly_banned', async () => {
+  const { deps, sockEmitter } = buildMockDeps({ registered: false });
+  const threshold = 3;
+  const session = createSession(deps, '/tmp/test-auth', { possiblyBannedThreshold: threshold, autoReconnect: false });
+
+  await session.connect();
+  sockEmitter.emit('connection.update', { qr: 'QR_EN_ATTENTE_DE_SCAN' });
+
+  // Fermetures répétées par timeout (408) pendant l'attente du scan, au-delà du seuil :
+  for (let i = 0; i < threshold + 2; i++) {
+    sockEmitter.emit('connection.update', {
+      connection: 'close',
+      lastDisconnect: { error: { output: { statusCode: 408 } } },
+    });
+  }
+
+  const state = session.getState();
+  assert.notEqual(state.status, 'possibly_banned', "l'appairage ne doit jamais être qualifié de bannissement");
+  assert.equal(state.status, 'qr_required', 'reste en attente de scan tant que non enregistré');
 });

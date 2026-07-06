@@ -21,6 +21,11 @@ const path = require('node:path');
  */
 function createApp(options = {}) {
   const { connectionManager, db, rateLimiter, whatsappCloud, admin, vault, publicBaseUrl = '', workerToken = process.env.WORKER_TOKEN } = options;
+  // Anti-abus : limite de requetes /v1/messages par application et par minute (0 = desactive).
+  const v1RateLimitPerMin = options.v1RateLimitPerMin !== undefined
+    ? options.v1RateLimitPerMin
+    : (process.env.V1_RATE_LIMIT_PER_MIN !== undefined ? Number(process.env.V1_RATE_LIMIT_PER_MIN) : 240);
+  const v1RateBuckets = new Map();
   const app = express();
 
   // Derrière un reverse-proxy (nginx + Cloudflare) : tenir compte des en-têtes X-Forwarded-*
@@ -170,11 +175,36 @@ function createApp(options = {}) {
   // ==========================================================================
   const apiKeyAuth = createApiKeyAuth(db);
 
+  // Limiteur anti-abus par application (fenetre fixe de 60 s). Complementaire du rateLimiter
+  // par connexion (debit d'envoi) : ici on plafonne le NOMBRE d'appels /v1 par cle/application,
+  // pour contenir une boucle cliente ou une cle fuitee. req.application est pose par apiKeyAuth.
+  function v1RateLimit(req, res, next) {
+    if (!v1RateLimitPerMin || v1RateLimitPerMin <= 0) return next();
+    const now = Date.now();
+    const id = req.application.id;
+    let bucket = v1RateBuckets.get(id);
+    if (!bucket || now >= bucket.resetAt) {
+      bucket = { count: 0, resetAt: now + 60_000 };
+      v1RateBuckets.set(id, bucket);
+    }
+    bucket.count += 1;
+    if (bucket.count > v1RateLimitPerMin) {
+      const retryAfterSeconds = Math.max(1, Math.ceil((bucket.resetAt - now) / 1000));
+      res.setHeader('Retry-After', String(retryAfterSeconds));
+      return res.status(429).json({
+        error: 'rate_limited',
+        message: `Limite de ${v1RateLimitPerMin} requetes/min par application atteinte`,
+        retryAfterSeconds,
+      });
+    }
+    return next();
+  }
+
   // Envoi sortant. La connexion visée est sélectionnée par `channel` (type de canal). Si
   // l'application possède plusieurs connexions du même canal, `connection_id` lève l'ambiguïté.
   // Si l'application ne possède qu'une seule connexion, les deux sont facultatifs.
   // Scoping strict : on ne résout jamais une connexion hors de l'application appelante.
-  app.post('/v1/messages', apiKeyAuth, async (req, res) => {
+  app.post('/v1/messages', apiKeyAuth, v1RateLimit, async (req, res) => {
     if (!requireConnectionManager(req, res)) return;
     const { connection_id: connectionId, channel, to, text } = req.body || {};
     if (!to || !text) {

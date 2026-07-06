@@ -37,6 +37,10 @@ const config = {
   // comme endpoint à appeler. Vide ⇒ déduite de la requête (peu fiable derrière un proxy).
   publicBaseUrl: required('PUBLIC_BASE_URL', ''),
 
+  // Anti-abus : nombre max de requêtes /v1/messages par application et par minute (0 = désactivé).
+  // Défaut généreux : protège d'une boucle/fuite de clé sans gêner un usage normal.
+  v1RateLimitPerMin: parseInt(required('V1_RATE_LIMIT_PER_MIN', '240'), 10),
+
   // WhatsApp Cloud API (Meta) — Task 8. verifyToken : validation GET du webhook ;
   // appSecret : vérification HMAC (X-Hub-Signature-256) des POST entrants ;
   // graphVersion : version de l'API Graph.

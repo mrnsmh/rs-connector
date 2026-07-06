@@ -84,7 +84,7 @@ async function main() {
   }
   webhookPollTimer = setTimeout(pollWebhookOutbox, WEBHOOK_POLL_INTERVAL_MS);
 
-  const app = createApp({ connectionManager, db, rateLimiter, webhookSigner, whatsappCloud: config.whatsappCloud, admin: config.admin, vault, publicBaseUrl: config.publicBaseUrl });
+  const app = createApp({ connectionManager, db, rateLimiter, webhookSigner, whatsappCloud: config.whatsappCloud, admin: config.admin, vault, publicBaseUrl: config.publicBaseUrl, v1RateLimitPerMin: config.v1RateLimitPerMin });
 
   const server = app.listen(config.port, () => {
     logger.info({ port: config.port }, 'rs-connector démarré');

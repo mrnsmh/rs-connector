@@ -254,14 +254,21 @@ function createSession(deps, authDir, options = {}) {
 
           // Point complémentaire (AUDIT.md) : au-delà du seuil de tentatives consécutives,
           // on distingue explicitement un possible bannissement plutôt que de reconnecter
-          // indéfiniment en silence.
+          // indéfiniment en silence. IMPORTANT : cela ne vaut que pour un compte DÉJÀ appairé
+          // (state.creds.registered). Avant l'appairage (attente de scan QR), les fermetures
+          // — timeout 408 pendant l'attente, redémarrage 515 juste après le scan — sont
+          // normales et ne doivent PAS être qualifiées de bannissement (faux positif).
           reconnectAttempts++;
-          if (reconnectAttempts >= possiblyBannedThreshold) {
+          const isRegistered = !!(state && state.creds && state.creds.registered);
+          if (isRegistered && reconnectAttempts >= possiblyBannedThreshold) {
             connectionStatus = 'possibly_banned';
             logger.error(
               { authDir, reconnectAttempts, statusCode },
               `Bannissement possible : ${reconnectAttempts} tentatives de reconnexion consécutives échouées`,
             );
+          } else if (!isRegistered) {
+            // Appairage non finalisé : on reste en attente de QR (ou en connexion), sans alarme.
+            connectionStatus = lastQr ? 'qr_required' : 'connecting';
           } else {
             connectionStatus = 'disconnected';
           }
