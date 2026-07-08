@@ -116,8 +116,12 @@ function buildMessageStatusHandler({ db, webhookDispatcher, lastStatusByMessage,
  */
 function buildIncomingMessageHandler({ webhookDispatcher }) {
   if (!webhookDispatcher) return undefined;
-  return async (connectionId, { from, messageId, text }) => {
-    await webhookDispatcher.enqueue(connectionId, 'message.received', { connectionId, from, messageId, text });
+  return async (connectionId, { from, messageId, text, media }) => {
+    const payload = { connectionId, from, messageId, text };
+    // Additif : `media` (octets base64 + type/mimetype) n'est ajouté que s'il existe, afin
+    // que le payload d'un message texte reste identique au contrat historique.
+    if (media) payload.media = media;
+    await webhookDispatcher.enqueue(connectionId, 'message.received', payload);
   };
 }
 
@@ -149,6 +153,7 @@ function createRealConnectionManager(
     fetchLatestBaileysVersion: baileys.fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore: baileys.makeCacheableSignalKeyStore,
     DisconnectReason: baileys.DisconnectReason,
+    downloadMediaMessage: baileys.downloadMediaMessage,
     fs,
     logger,
     db, // nécessaire pour le cache LID du contact resolver (adaptateur WhatsApp).

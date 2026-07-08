@@ -16,8 +16,46 @@
 
 const MAX_RECONNECT_DELAY_MS = 30_000;
 const DEFAULT_POSSIBLY_BANNED_THRESHOLD = 8;
+// Taille max d'un média entrant téléchargé puis transmis en base64 au webhook. Au-delà,
+// seules les métadonnées sont transmises (pas les octets). Configurable via l'environnement.
+const MAX_INBOUND_MEDIA_BYTES = Number(process.env.WA_MAX_INBOUND_MEDIA_BYTES) || 16 * 1024 * 1024;
 const { fromBaileysStatusCode } = require('./message-status');
 const { createContactResolver } = require('./contact-resolver');
+
+// Types de messages Baileys porteurs d'un média téléchargeable → type applicatif.
+const INBOUND_MEDIA_TYPES = {
+  imageMessage: 'image',
+  documentMessage: 'document',
+  audioMessage: 'audio',
+  videoMessage: 'video',
+  stickerMessage: 'sticker',
+};
+
+/**
+ * Décrit le média d'un message entrant Baileys (fonction pure, testable sans réseau) :
+ * renvoie { type, mimetype, caption, filename, fileLength } ou null si aucun média.
+ * Gère aussi documentWithCaptionMessage (document + légende).
+ */
+function describeIncomingMedia(waMessage) {
+  if (!waMessage || typeof waMessage !== 'object') return null;
+  const root = waMessage.documentWithCaptionMessage?.message || waMessage;
+  for (const [key, type] of Object.entries(INBOUND_MEDIA_TYPES)) {
+    const node = root[key];
+    if (!node) continue;
+    let fileLength = node.fileLength;
+    if (fileLength && typeof fileLength === 'object') {
+      fileLength = typeof fileLength.toNumber === 'function' ? fileLength.toNumber() : fileLength.low;
+    }
+    return {
+      type,
+      mimetype: node.mimetype || '',
+      caption: node.caption || '',
+      filename: node.fileName || node.title || '',
+      fileLength: Number(fileLength) || 0,
+    };
+  }
+  return null;
+}
 
 /**
  * Crée une session Baileys pour une connexion donnée.
@@ -44,6 +82,7 @@ function createSession(deps, authDir, options = {}) {
     fetchLatestBaileysVersion,
     makeCacheableSignalKeyStore,
     DisconnectReason,
+    downloadMediaMessage,
     fs,
     logger,
     db,
@@ -308,11 +347,37 @@ function createSession(deps, authDir, options = {}) {
           // Task 6 : notifie l'application propriétaire d'un message entrant via webhook
           // (enqueue dans l'outbox DB, jamais un envoi HTTP direct depuis ce listener).
           if (onIncomingMessage) {
+            const mediaInfo = describeIncomingMedia(msg.message);
             const text = msg.message?.conversation
               || msg.message?.extendedTextMessage?.text
+              || (mediaInfo && mediaInfo.caption)
               || null;
+            // Média entrant (image/audio/document/vidéo/sticker) : on télécharge et
+            // déchiffre les octets via Baileys, transmis en base64 au webhook pour que
+            // l'application crée un Document (analyse/transcription). Additif : sans média,
+            // ou si le téléchargement échoue, `media` reste null et le flux texte est inchangé.
+            let media = null;
+            if (mediaInfo) {
+              media = { type: mediaInfo.type, mimetype: mediaInfo.mimetype, filename: mediaInfo.filename, dataBase64: null };
+              const overCap = mediaInfo.fileLength && mediaInfo.fileLength > MAX_INBOUND_MEDIA_BYTES;
+              if (downloadMediaMessage && !overCap) {
+                try {
+                  const buffer = await downloadMediaMessage(
+                    msg, 'buffer', {},
+                    { logger, reuploadRequest: currentSock.updateMediaMessage },
+                  );
+                  if (buffer && buffer.length) media.dataBase64 = Buffer.from(buffer).toString('base64');
+                } catch (err) {
+                  logger.warn({ err: err.message, from: remoteJid, type: mediaInfo.type },
+                    'Téléchargement du média entrant échoué — texte/métadonnées transmis sans les octets');
+                }
+              } else if (overCap) {
+                logger.warn({ from: remoteJid, fileLength: mediaInfo.fileLength, type: mediaInfo.type },
+                  'Média entrant trop volumineux — non téléchargé (métadonnées seules)');
+              }
+            }
             try {
-              const result = onIncomingMessage({ from: remoteJid, messageId: msg.key?.id || null, text });
+              const result = onIncomingMessage({ from: remoteJid, messageId: msg.key?.id || null, text, media });
               if (result && typeof result.catch === 'function') {
                 result.catch((err) => logger.error({ err: err.message }, 'onIncomingMessage a échoué'));
               }
@@ -365,4 +430,4 @@ function createSession(deps, authDir, options = {}) {
   };
 }
 
-module.exports = { createSession, MAX_RECONNECT_DELAY_MS, DEFAULT_POSSIBLY_BANNED_THRESHOLD };
+module.exports = { createSession, describeIncomingMedia, MAX_RECONNECT_DELAY_MS, DEFAULT_POSSIBLY_BANNED_THRESHOLD };
