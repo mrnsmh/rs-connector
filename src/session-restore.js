@@ -15,8 +15,13 @@
  * QR), pas une reconnexion muette.
  */
 
-// Statuts dont le dernier état connu justifie une tentative de reconnexion automatique.
-const RESTORABLE_STATUSES = ['connected', 'qr_required', 'connecting', 'disconnected'];
+// Statuts dont le dernier état connu justifie une reconnexion automatique au démarrage.
+// UNIQUEMENT `connected` : on ne restaure QUE les sessions que l'utilisateur avait
+// réellement connectées (les préserver à travers un redeploy est légitime). Les statuts
+// `qr_required` / `connecting` / `disconnected` ne sont PAS restaurés : ils relanceraient une
+// connexion (et un QR) que personne n'a demandée — la connexion doit rester une action MANUELLE
+// (bouton « Connecter »). `logged_out` / `possibly_banned` restent exclus (action humaine requise).
+const RESTORABLE_STATUSES = ['connected'];
 
 /**
  * @param {object} db - Instance db.js (doit exposer listConnections()).
