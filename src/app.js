@@ -319,6 +319,33 @@ function createApp(options = {}) {
     }
   });
 
+  // Auto-provisioning (self-service) : une application enregistre SA propre connexion, scopée à
+  // elle-même. Idempotent — renvoie l'existante si elle appartient déjà à l'app, refuse (409)
+  // si elle appartient à une autre application. Permet le schéma « une connexion par
+  // organisation » côté application, sans passer par le back-office admin.
+  app.post('/v1/connections', apiKeyAuth, v1RateLimit, async (req, res) => {
+    const { connectionId, channelType = 'whatsapp_baileys' } = req.body || {};
+    if (!connectionId || typeof connectionId !== 'string') {
+      return res.status(400).json({ error: 'bad_request', message: 'connectionId requis' });
+    }
+    try {
+      const existing = await db.getConnection(connectionId);
+      if (existing && existing.application_id && existing.application_id !== req.application.id) {
+        return res.status(409).json({ error: 'connection_conflict', message: 'connectionId déjà utilisé par une autre application' });
+      }
+      await db.upsertConnection({
+        connectionId,
+        channelType,
+        applicationId: req.application.id,
+        status: existing ? existing.status : 'disconnected',
+      });
+      return res.status(existing ? 200 : 201).json({ connectionId, channelType, applicationId: req.application.id, created: !existing });
+    } catch (err) {
+      logger.error({ err: err.message, connectionId }, 'Erreur création connexion /v1');
+      return res.status(500).json({ error: 'Erreur interne' });
+    }
+  });
+
   // ==========================================================================
   // API interne worker (migration Django) : le plan de controle Django delegue l'envoi
   // sortant ICI. Authentifiee par l'en-tete X-Worker-Token (jamais exposee au client).
