@@ -175,3 +175,42 @@ td code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; fo
 .add-channel { margin-top: 12px; border-top: 1px dashed var(--border-strong); padding-top: 12px; }
 .advanced { margin: 8px 0; }
 .advanced > summary { cursor: pointer; }
+
+/* ── Icônes (sprite ligne, style Feather) ──────────────────────────────────── */
+.i { display: inline-block; width: 1.05em; height: 1.05em; vertical-align: -.16em; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.chan-ico { color: var(--accent); width: 20px; height: 20px; }
+.panel h2 .i, .panel h3 .i { color: var(--accent); }
+
+/* ── Onglets de vues (Connexions / Doc / FAQ / Développeurs) ───────────────── */
+.viewtabs { display: flex; gap: 4px; padding: 0 24px; background: #fff; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.viewtabs .tab {
+  width: auto; margin: 0; padding: 13px 14px 11px; background: transparent; color: var(--muted);
+  border: 0; border-bottom: 2px solid transparent; border-radius: 0; box-shadow: none;
+  font-weight: 600; font-size: 14px; display: inline-flex; align-items: center; gap: 7px; white-space: nowrap;
+}
+.viewtabs .tab:hover:not(:disabled) { filter: none; transform: none; color: var(--text); }
+.viewtabs .tab.on { color: var(--accent); border-bottom-color: var(--accent); }
+.viewtabs .tab .i { width: 17px; height: 17px; }
+
+/* ── Vues documentaires ────────────────────────────────────────────────────── */
+.doc h2, .doc h3, .doc-item h4 { display: flex; align-items: center; gap: 9px; }
+.doc h3 { margin: 0 0 12px; font-size: 15px; font-weight: 650; }
+.doc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-top: 4px; }
+.doc-item { border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 14px 15px; background: var(--bg-elev); }
+.doc-item h4 { text-transform: none; letter-spacing: 0; font-size: 14px; color: var(--text); margin: 0 0 6px; }
+.doc-item h4 .i { color: var(--accent); }
+.doc-item p { margin: 0; font-size: 13.5px; color: var(--ink-soft, #3a4a5e); line-height: 1.6; }
+.doc-steps { padding-left: 20px; line-height: 1.7; font-size: 14px; }
+.doc-steps > li { margin-bottom: 10px; }
+.doc-steps ul { margin: 6px 0; padding-left: 2px; list-style: none; }
+.doc-steps ul li { display: flex; align-items: center; gap: 8px; margin: 4px 0; color: var(--muted); }
+.doc-steps ul li .i { color: var(--accent); }
+.faq { margin-top: 4px; }
+.faq-item { border-bottom: 1px solid var(--border); padding: 12px 2px; }
+.faq-item:last-child { border-bottom: 0; }
+.faq-item summary { cursor: pointer; font-weight: 600; font-size: 14px; list-style: none; }
+.faq-item summary::-webkit-details-marker { display: none; }
+.faq-item summary::before { content: '+'; color: var(--accent); font-weight: 700; margin-right: 9px; }
+.faq-item[open] summary::before { content: '–'; }
+.faq-item p { margin: 10px 0 2px 22px; line-height: 1.6; }
+.codeblock { background: #0f2a2a; color: #d1fae5; border-radius: var(--radius-sm); padding: 14px 16px; overflow-x: auto; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; line-height: 1.6; white-space: pre; margin: 10px 0 0; }

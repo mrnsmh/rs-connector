@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { api } from '../api';
 import Logo from './Logo.jsx';
+import { Icon, IconSprite } from './Icon.jsx';
+import { DocsView, FaqView, DevView } from './Views.jsx';
 
 const CHANNEL_LABELS = {
   whatsapp_baileys: 'WhatsApp · Baileys (QR)',
@@ -10,6 +12,7 @@ const CHANNEL_LABELS = {
   email: 'Email · SMTP/IMAP',
 };
 const label = (t) => CHANNEL_LABELS[t] || t;
+const CHANNEL_ICONS = { whatsapp_baileys: 'scan', whatsapp_cloud: 'package', telegram: 'chat', email: 'mail' };
 
 // Construit l'objet credentials attendu par l'adaptateur, à partir de champs simples.
 function buildCreds(channel, c) {
@@ -143,6 +146,7 @@ function ChannelCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault, ap
   return (
     <div className={`card${isDefault ? ' is-default' : ''}`}>
       <div className="card-head">
+        <Icon name={CHANNEL_ICONS[c.channelType] || 'plug'} className="chan-ico" />
         <span className="id">{c.connectionId}</span>
         <span className="badge">{label(c.channelType)}</span>
         {isDefault && <span className="badge is-default" title="Canal par défaut de l'application (utilisé quand l'appel ne précise pas de canal)">★ défaut</span>}
@@ -393,6 +397,7 @@ export default function Dashboard({ onLogout }) {
   const [revealedSecret, setRevealedSecret] = useState(null);
   const [info, setInfo] = useState(null);
   const [meUser, setMeUser] = useState(null);
+  const [view, setView] = useState('connexions');
 
   const refresh = useCallback(async () => {
     try {
@@ -496,6 +501,7 @@ export default function Dashboard({ onLogout }) {
 
   return (
     <>
+      <IconSprite />
       <header className="topbar">
         <div className="brand">
           <span className="mark"><Logo size={30} /></span>
@@ -505,17 +511,29 @@ export default function Dashboard({ onLogout }) {
         {meUser && <span className="who">Connecté : <b>{meUser}</b></span>}
         <button className="secondary" onClick={onLogout}>Déconnexion</button>
       </header>
+      <nav className="viewtabs">
+        <button className={`tab${view === 'connexions' ? ' on' : ''}`} onClick={() => setView('connexions')}><Icon name="plug" /> Connexions</button>
+        <button className={`tab${view === 'docs' ? ' on' : ''}`} onClick={() => setView('docs')}><Icon name="file" /> Documentation</button>
+        <button className={`tab${view === 'faq' ? ' on' : ''}`} onClick={() => setView('faq')}><Icon name="support" /> FAQ</button>
+        <button className={`tab${view === 'dev' ? ' on' : ''}`} onClick={() => setView('dev')}><Icon name="globe" /> Développeurs</button>
+      </nav>
       <main className="dash">
+        {err && <div className="panel error">{err}</div>}
+
+        {view === 'docs' && <DocsView />}
+        {view === 'faq' && <FaqView />}
+        {view === 'dev' && <DevView info={info} />}
+
+        {view === 'connexions' && (<>
         <div className="summary">
           <span>{apps.length} application{apps.length > 1 ? 's' : ''}</span>
           <span>{connections.length} canal{connections.length > 1 ? 'aux' : ''}</span>
           <span className="ok-text">{connectedTotal} connecté(s)</span>
         </div>
-        {err && <div className="panel error">{err}</div>}
 
         <section className="panel">
           <div className="panel-head">
-            <h2>Applications &amp; canaux</h2>
+            <h2><Icon name="package" /> Applications &amp; canaux</h2>
             <button onClick={() => setShowNewApp((v) => !v)}>{showNewApp ? 'Fermer' : '+ Nouvelle application'}</button>
           </div>
           <p className="muted">Chaque application gère ses propres canaux (Telegram, WhatsApp, …). Ajoutez un canal directement sous l'application concernée.</p>
@@ -607,6 +625,7 @@ export default function Dashboard({ onLogout }) {
 
         <TwoFactor />
         <ChangePassword />
+        </>)}
       </main>
     </>
   );
