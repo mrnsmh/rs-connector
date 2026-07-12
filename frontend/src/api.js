@@ -53,3 +53,47 @@ export const api = {
   unsetDefaultConnection: (id) => request(`/connections/${encodeURIComponent(id)}/default`, { method: 'DELETE' }),
   setConnectionApplication: (id, applicationId) => request(`/connections/${encodeURIComponent(id)}/application`, { method: 'POST', body: { applicationId: applicationId || null } }),
 };
+
+// ── Client SELF-SERVICE utilisateur (routes /u) — jeton CSRF séparé de l'admin ──────────────
+let userCsrf = null;
+async function userRequest(path, { method = 'GET', body } = {}) {
+  const headers = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (userCsrf && method !== 'GET') headers['X-CSRF-Token'] = userCsrf;
+  const res = await fetch('/u' + path, {
+    method,
+    headers,
+    credentials: 'include',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let data = null;
+  try { data = await res.json(); } catch { /* pas de corps JSON */ }
+  if (!res.ok) {
+    const err = new Error((data && data.error) || res.statusText);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+export const userApi = {
+  setCsrf: (t) => { userCsrf = t || null; },
+  register: (email, password) => userRequest('/register', { method: 'POST', body: { email, password } }),
+  login: (email, password) => userRequest('/login', { method: 'POST', body: { email, password } }),
+  logout: () => userRequest('/logout', { method: 'POST' }),
+  me: () => userRequest('/me'),
+  listApplications: () => userRequest('/applications'),
+  createApplication: (name, webhookUrl) => userRequest('/applications', { method: 'POST', body: { name, webhookUrl } }),
+  regenerateKey: (id) => userRequest(`/applications/${encodeURIComponent(id)}/regenerate-key`, { method: 'POST', body: {} }),
+  rotateWebhookSecret: (id) => userRequest(`/applications/${encodeURIComponent(id)}/rotate-webhook-secret`, { method: 'POST', body: {} }),
+  deleteApplication: (id) => userRequest(`/applications/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+  listConnections: () => userRequest('/connections'),
+  createConnection: (payload) => userRequest('/connections', { method: 'POST', body: payload }),
+  connectionQr: (id) => userRequest(`/connections/${encodeURIComponent(id)}/qr`),
+  sendTest: (id, to, text) => userRequest(`/connections/${encodeURIComponent(id)}/send`, { method: 'POST', body: { to, text } }),
+  setDefaultConnection: (id) => userRequest(`/connections/${encodeURIComponent(id)}/default`, { method: 'POST', body: {} }),
+  unsetDefaultConnection: (id) => userRequest(`/connections/${encodeURIComponent(id)}/default`, { method: 'DELETE' }),
+  setConnectionApplication: (id, applicationId) => userRequest(`/connections/${encodeURIComponent(id)}/application`, { method: 'POST', body: { applicationId: applicationId || null } }),
+  deleteConnection: (id) => userRequest(`/connections/${encodeURIComponent(id)}`, { method: 'DELETE' }),
+};

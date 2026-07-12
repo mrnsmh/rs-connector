@@ -3,12 +3,13 @@ import { api, setCsrf } from './api';
 import Login from './components/Login.jsx';
 import Otp from './components/Otp.jsx';
 import Dashboard from './components/Dashboard.jsx';
+import UserApp from './components/UserApp.jsx';
 
-export default function App() {
+// Back-office ADMIN (mvr) — flux inchangé : login → OTP → dashboard global. Accessible via #admin.
+function AdminApp() {
   const [phase, setPhase] = useState('loading'); // loading | login | otp | dashboard
   const [error, setError] = useState(null);
 
-  // Au chargement : si une session valide (OTP vérifié) existe déjà, aller au dashboard.
   useEffect(() => {
     api.me().then((m) => { setCsrf(m.csrfToken); setPhase('dashboard'); }).catch(() => setPhase('login'));
   }, []);
@@ -45,4 +46,16 @@ export default function App() {
   if (phase === 'login') return <Login onSubmit={handleLogin} error={error} />;
   if (phase === 'otp') return <Otp onSubmit={handleOtp} error={error} />;
   return <Dashboard onLogout={handleLogout} />;
+}
+
+// Routage : espace SELF-SERVICE utilisateur par défaut ; back-office admin via #admin.
+export default function App() {
+  const [mode] = useState(() => (typeof window !== 'undefined' && window.location.hash.replace(/^#/, '') === 'admin') ? 'admin' : 'user');
+  // Un changement de hash (#admin ⇄ racine) recharge pour appliquer le bon espace.
+  useEffect(() => {
+    const onHash = () => window.location.reload();
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+  return mode === 'admin' ? <AdminApp /> : <UserApp />;
 }
