@@ -33,12 +33,12 @@ function createDb(pool) {
 
   // ---- Applications (multi-app, Task 5). Chaque application branchée a une clé API
   // (stockée uniquement hashée), une URL webhook et un secret HMAC propres. ----
-  async function createApplication({ name, apiKeyHash, apiKeyPrefix, webhookUrl = null, webhookSecret = null, status = 'active' }) {
+  async function createApplication({ name, apiKeyHash, apiKeyPrefix, webhookUrl = null, webhookSecret = null, status = 'active', userId = null }) {
     const result = await pool.query(
-      `INSERT INTO applications (name, api_key_hash, api_key_prefix, webhook_url, webhook_secret, status)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO applications (name, api_key_hash, api_key_prefix, webhook_url, webhook_secret, status, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [name, apiKeyHash, apiKeyPrefix, webhookUrl, webhookSecret, status],
+      [name, apiKeyHash, apiKeyPrefix, webhookUrl, webhookSecret, status, userId],
     );
     return result.rows[0];
   }
@@ -364,6 +364,64 @@ function createDb(pool) {
     await pool.query('DELETE FROM login_attempts WHERE username = $1', [username]);
   }
 
+  // ---- Comptes UTILISATEURS self-service + applications scopées par utilisateur. ----
+  async function createUser({ email, passwordHash }) {
+    const result = await pool.query(
+      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING *',
+      [email, passwordHash],
+    );
+    return result.rows[0];
+  }
+
+  async function getUserByEmail(email) {
+    const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    return result.rows[0] || null;
+  }
+
+  async function getUserById(id) {
+    const result = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    return result.rows[0] || null;
+  }
+
+  async function updateUserPassword(id, passwordHash) {
+    await pool.query('UPDATE users SET password_hash = $2, updated_at = now() WHERE id = $1', [id, passwordHash]);
+  }
+
+  async function createUserSession({ tokenHash, userId, csrfToken, expiresAt }) {
+    const result = await pool.query(
+      'INSERT INTO user_sessions (id, user_id, csrf_token, expires_at) VALUES ($1, $2, $3, $4) RETURNING *',
+      [tokenHash, userId, csrfToken, expiresAt],
+    );
+    return result.rows[0];
+  }
+
+  async function getUserSession(tokenHash) {
+    const result = await pool.query('SELECT * FROM user_sessions WHERE id = $1', [tokenHash]);
+    return result.rows[0] || null;
+  }
+
+  async function deleteUserSession(tokenHash) {
+    await pool.query('DELETE FROM user_sessions WHERE id = $1', [tokenHash]);
+  }
+
+  async function deleteExpiredUserSessions() {
+    await pool.query('DELETE FROM user_sessions WHERE expires_at < now()');
+  }
+
+  // Applications possédées par un utilisateur (isolation stricte : un user ne voit que SES apps).
+  async function listApplicationsByUser(userId) {
+    const result = await pool.query(
+      'SELECT id, name, api_key_prefix, webhook_url, status, default_connection_id, created_at, updated_at FROM applications WHERE user_id = $1 ORDER BY created_at ASC',
+      [userId],
+    );
+    return result.rows;
+  }
+
+  async function getApplicationByIdForUser(id, userId) {
+    const result = await pool.query('SELECT * FROM applications WHERE id = $1 AND user_id = $2', [id, userId]);
+    return result.rows[0] || null;
+  }
+
   async function close() {
     await pool.end();
   }
@@ -412,6 +470,16 @@ function createDb(pool) {
     getLoginAttempt,
     recordFailedLogin,
     resetLoginAttempts,
+    createUser,
+    getUserByEmail,
+    getUserById,
+    updateUserPassword,
+    createUserSession,
+    getUserSession,
+    deleteUserSession,
+    deleteExpiredUserSessions,
+    listApplicationsByUser,
+    getApplicationByIdForUser,
     close,
   };
 }

@@ -7,6 +7,7 @@ const { LidUnresolvedError } = require('./contact-resolver');
 const { createApiKeyAuth } = require('./auth-apikey');
 const { verifyMetaSignature, checkVerification, extractInboundEvents } = require('./whatsapp-cloud-webhook');
 const { createAdminRouter } = require('./admin/routes');
+const { createUserRouter } = require('./user/routes');
 const adapterRegistry = require('./adapters');
 const path = require('node:path');
 
@@ -52,6 +53,10 @@ function createApp(options = {}) {
   // Back-office sécurisé (Task 9) : routes /admin (login → OTP → session, CSRF, lockout) +
   // provisioning (apps/connexions avec credentials chiffrés).
   app.use('/admin', createAdminRouter({ db, admin, vault, connectionManager, adapterRegistry, publicBaseUrl }));
+
+  // Espace SELF-SERVICE utilisateur : routes /u (inscription/connexion/session + gestion de
+  // SES applications et canaux, isolées par utilisateur). Cookie de session dédié (rsconnector_user).
+  app.use('/u', createUserRouter({ db, vault, connectionManager, adapterRegistry, user: { cookieSecure: !admin || admin.cookieSecure !== false } }));
 
   function requireConnectionManager(req, res) {
     if (!connectionManager) {
