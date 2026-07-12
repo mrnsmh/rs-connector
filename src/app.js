@@ -324,22 +324,52 @@ function createApp(options = {}) {
   // si elle appartient à une autre application. Permet le schéma « une connexion par
   // organisation » côté application, sans passer par le back-office admin.
   app.post('/v1/connections', apiKeyAuth, v1RateLimit, async (req, res) => {
-    const { connectionId, channelType = 'whatsapp_baileys' } = req.body || {};
+    const { connectionId, channelType = 'whatsapp_baileys', credentials = null, webhookUrl = null } = req.body || {};
     if (!connectionId || typeof connectionId !== 'string') {
       return res.status(400).json({ error: 'bad_request', message: 'connectionId requis' });
+    }
+    if (adapterRegistry && typeof adapterRegistry.getAdapter === 'function' && !adapterRegistry.getAdapter(channelType)) {
+      return res.status(400).json({ error: 'unknown_channel_type', message: `canal inconnu: ${channelType}` });
     }
     try {
       const existing = await db.getConnection(connectionId);
       if (existing && existing.application_id && existing.application_id !== req.application.id) {
         return res.status(409).json({ error: 'connection_conflict', message: 'connectionId déjà utilisé par une autre application' });
       }
+      // Credentials optionnels (ex. token de bot Telegram). Self-service : une application peut,
+      // avec sa SEULE clé API, enregistrer ET connecter sa connexion — sans passer par l'admin.
+      // Chiffrés au repos (fail-closed : refus de stocker un secret sans coffre). Non fournis →
+      // COALESCE en base préserve un token/webhook déjà présents (idempotent).
+      const hasCreds = credentials && typeof credentials === 'object' && Object.keys(credentials).length > 0;
+      let credentialsEncrypted;
+      if (hasCreds) {
+        if (!vault) {
+          return res.status(400).json({ error: 'encryption_not_configured', message: 'CREDENTIALS_ENCRYPTION_KEY requis pour stocker des credentials' });
+        }
+        credentialsEncrypted = vault.encryptJson(credentials);
+      }
       await db.upsertConnection({
         connectionId,
         channelType,
         applicationId: req.application.id,
-        status: existing ? existing.status : 'disconnected',
+        webhookUrl: webhookUrl || undefined,
+        credentialsEncrypted,
+        status: hasCreds ? 'initializing' : (existing ? existing.status : 'disconnected'),
       });
-      return res.status(existing ? 200 : 201).json({ connectionId, channelType, applicationId: req.application.id, created: !existing });
+      // Si des credentials sont fournis, on tente la connexion live immédiate (getOrCreate +
+      // connect). Pour Telegram : getMe valide le token puis démarre le long polling.
+      let state = null;
+      if (hasCreds && connectionManager) {
+        try {
+          const adapter = await connectionManager.getOrCreate(connectionId, { channelType, credentials });
+          if (adapter && typeof adapter.connect === 'function') await adapter.connect();
+          state = adapter && typeof adapter.getState === 'function' ? adapter.getState() : null;
+        } catch (connErr) {
+          logger.error({ err: connErr.message, connectionId }, 'Connexion live /v1 échouée');
+          return res.status(502).json({ error: 'connect_failed', message: connErr.message, connectionId });
+        }
+      }
+      return res.status(existing ? 200 : 201).json({ connectionId, channelType, applicationId: req.application.id, created: !existing, state });
     } catch (err) {
       logger.error({ err: err.message, connectionId }, 'Erreur création connexion /v1');
       return res.status(500).json({ error: 'Erreur interne' });
