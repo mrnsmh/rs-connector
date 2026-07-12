@@ -135,9 +135,9 @@ function TestSend({ connectionId }) {
   );
 }
 
-// ---- Carte d'une connexion ----
-function ConnectionCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault, apps, onReassign }) {
-  const [tab, setTab] = useState(null); // 'qr' | 'send' | null
+// ---- Carte d'un canal (connexion) au sein d'une application ----
+function ChannelCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault, apps, onReassign }) {
+  const [tab, setTab] = useState(null); // 'qr' | 'send' | 'move' | null
   const status = (c.state && c.state.status) || c.status;
   const isBaileys = c.channelType === 'whatsapp_baileys';
   return (
@@ -150,27 +150,140 @@ function ConnectionCard({ c, onDelete, isDefault, canBeDefault, onToggleDefault,
         <span className={`status ${status}`}><span className="dot" />{status}</span>
       </div>
       <div className="actions-inline">
-        {isBaileys && <button className="secondary" onClick={() => setTab(tab === 'qr' ? null : 'qr')}>{tab === 'qr' ? 'Masquer le QR' : 'Afficher le QR'}</button>}
-        <button className="secondary" onClick={() => setTab(tab === 'send' ? null : 'send')}>{tab === 'send' ? 'Fermer' : 'Tester l\u2019envoi'}</button>
+        {isBaileys && <button className="secondary small" onClick={() => setTab(tab === 'qr' ? null : 'qr')}>{tab === 'qr' ? 'Masquer le QR' : 'Afficher le QR'}</button>}
+        <button className="secondary small" onClick={() => setTab(tab === 'send' ? null : 'send')}>{tab === 'send' ? 'Fermer' : 'Tester l\u2019envoi'}</button>
         {canBeDefault && (
           isDefault
             ? <button className="small" onClick={onToggleDefault} title="Retirer ce canal comme défaut">★ Par défaut</button>
             : <button className="secondary small" onClick={onToggleDefault} title="Utiliser ce canal quand l'appel /v1/messages ne précise pas de canal">Définir par défaut</button>
         )}
+        <button className="secondary small" onClick={() => setTab(tab === 'move' ? null : 'move')} title="Déplacer ce canal vers une autre application (n'interrompt pas la session)">Déplacer</button>
         <span className="spacer" />
         <button className="secondary small danger" onClick={onDelete}>Supprimer</button>
       </div>
-      <div className="actions-inline">
-        <label className="conn-app" title="Application propriétaire de cette connexion. La réassignation ne coupe pas la session (mise à jour base uniquement).">
-          <span className="muted small">Application</span>
-          <select value={c.applicationId || ''} onChange={(e) => onReassign(e.target.value)}>
-            <option value="">— Aucune —</option>
-            {(apps || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
-        </label>
-      </div>
+      {tab === 'move' && (
+        <div className="actions-inline">
+          <label className="conn-app" title="Déplacer ce canal vers une autre application. Mise à jour base uniquement — la session live n'est pas coupée.">
+            <span className="muted small">Déplacer vers</span>
+            <select value={c.applicationId || ''} onChange={(e) => { onReassign(e.target.value); setTab(null); }}>
+              <option value="">— Aucune (détacher) —</option>
+              {(apps || []).map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </select>
+          </label>
+        </div>
+      )}
       {tab === 'qr' && <QrView connectionId={c.connectionId} />}
       {tab === 'send' && <TestSend connectionId={c.connectionId} />}
+    </div>
+  );
+}
+
+// ---- Formulaire « Ajouter un canal » rattaché à UNE application ----
+function slugify(s) { return String(s || 'app').toLowerCase().normalize('NFD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 12) || 'app'; }
+function shortChan(t) { return (t || 'canal').split('_')[0]; }
+
+function AddChannelForm({ app, channels, onCreate, onDone }) {
+  const [connType, setConnType] = useState((channels[0] && channels[0].channelType) || 'telegram');
+  const [connId, setConnId] = useState('');
+  const [creds, setCreds] = useState({});
+  const [webhook, setWebhook] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const suggested = `${slugify(app.name)}-${shortChan(connType)}`;
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true); setMsg(null);
+    try {
+      const r = await onCreate({
+        connectionId: (connId || suggested).trim(),
+        channelType: connType,
+        applicationId: app.id,
+        webhookUrl: webhook || null,
+        credentials: buildCreds(connType, creds),
+      });
+      setMsg({ ok: true, text: `Canal « ${r.connectionId} » ajouté (statut : ${r.state ? r.state.status : 'créé'}).` });
+      setConnId(''); setCreds({}); setWebhook('');
+      // WhatsApp Baileys : on laisse le formulaire ouvert pour afficher le QR via la carte.
+      if (connType !== 'whatsapp_baileys' && onDone) setTimeout(onDone, 800);
+    } catch (e2) {
+      setMsg({ ok: false, text: e2.data && e2.data.error === 'encryption_not_configured'
+        ? 'Chiffrement non configuré (CREDENTIALS_ENCRYPTION_KEY) sur rs-connector.'
+        : (e2.data && e2.data.error === 'connection_conflict')
+          ? 'Cet identifiant de canal est déjà utilisé par une autre application.'
+          : (e2.message || 'Échec') });
+    } finally { setBusy(false); }
+  }
+
+  return (
+    <form className="subform add-channel" onSubmit={submit}>
+      <div className="row">
+        <label>Type de canal
+          <select value={connType} onChange={(e) => { setConnType(e.target.value); setCreds({}); }}>
+            {channels.map((c) => <option key={c.channelType} value={c.channelType}>{label(c.channelType)}</option>)}
+          </select>
+        </label>
+        <label>Identifiant du canal
+          <input value={connId} onChange={(e) => setConnId(e.target.value)} placeholder={suggested} />
+        </label>
+      </div>
+      <div className="creds-block"><CredentialFields channel={connType} value={creds} onChange={setCreds} /></div>
+      <details className="advanced"><summary className="muted small">Options avancées</summary>
+        <label>Webhook URL (optionnel — hérite de l'application si vide)
+          <input value={webhook} onChange={(e) => setWebhook(e.target.value)} placeholder="https://mon-app/webhooks/rs-connector" />
+        </label>
+      </details>
+      <div className="inline-row">
+        <button type="submit" disabled={busy || !connType}>{busy ? 'Ajout…' : 'Ajouter le canal'}</button>
+        {onDone && <button type="button" className="secondary" onClick={onDone}>Fermer</button>}
+      </div>
+      {msg && <div className={msg.ok ? 'notice' : 'error'}>{msg.text}</div>}
+    </form>
+  );
+}
+
+// ---- Bloc d'une application : ses canaux + ajout + actions ----
+function ApplicationCard({ app, conns, channels, apps, defaultConnId, onToggleDefault, onReassign, onDeleteConn, onCreateConn, onRegenerate, onRotateSecret, onDeleteApp }) {
+  const [adding, setAdding] = useState(false);
+  const connectedCount = conns.filter((x) => ((x.state && x.state.status) || x.status) === 'connected').length;
+  return (
+    <div className="app-block">
+      <div className="app-block-head">
+        <div className="app-title">
+          <h3>{app.name}</h3>
+          <span className="badge">{app.api_key_prefix}…</span>
+          <span className="muted small">{conns.length} canal{conns.length > 1 ? 'aux' : ''} · {connectedCount} connecté(s)</span>
+          {app.webhook_url ? <span className="muted small" title={app.webhook_url}>webhook ✓</span> : <span className="muted small">aucun webhook</span>}
+        </div>
+        <div className="app-actions">
+          <button onClick={() => setAdding((v) => !v)}>{adding ? 'Fermer' : '+ Ajouter un canal'}</button>
+          <details className="app-menu"><summary className="secondary small">⋯</summary>
+            <div className="app-menu-body">
+              <button className="secondary small" onClick={() => onRegenerate(app)}>Régénérer la clé API</button>
+              <button className="secondary small" onClick={() => onRotateSecret(app)}>Régénérer le secret webhook</button>
+              <button className="secondary small danger" onClick={() => onDeleteApp(app)}>Supprimer l'application</button>
+            </div>
+          </details>
+        </div>
+      </div>
+
+      <div className="app-channels">
+        {conns.map((c) => (
+          <ChannelCard
+            key={c.connectionId}
+            c={c}
+            onDelete={() => onDeleteConn(c)}
+            canBeDefault
+            isDefault={defaultConnId === c.connectionId}
+            onToggleDefault={() => onToggleDefault(c)}
+            apps={apps}
+            onReassign={(appId) => onReassign(c, appId)}
+          />
+        ))}
+        {conns.length === 0 && !adding && <p className="muted app-empty">Aucun canal rattaché. Cliquez « + Ajouter un canal » pour connecter Telegram, WhatsApp, etc.</p>}
+      </div>
+
+      {adding && <AddChannelForm app={app} channels={channels} onCreate={onCreateConn} onDone={() => setAdding(false)} />}
     </div>
   );
 }
@@ -272,6 +385,7 @@ export default function Dashboard({ onLogout }) {
   const [connections, setConnections] = useState([]);
   const [err, setErr] = useState(null);
 
+  const [showNewApp, setShowNewApp] = useState(false);
   const [appName, setAppName] = useState('');
   const [appWebhook, setAppWebhook] = useState('');
   const [revealedKey, setRevealedKey] = useState(null);
@@ -279,16 +393,6 @@ export default function Dashboard({ onLogout }) {
   const [revealedSecret, setRevealedSecret] = useState(null);
   const [info, setInfo] = useState(null);
   const [meUser, setMeUser] = useState(null);
-  const [exChannel, setExChannel] = useState('');
-  const [exTo, setExTo] = useState('');
-  const [exText, setExText] = useState('Bonjour depuis rs-connector');
-
-  const [connId, setConnId] = useState('');
-  const [connType, setConnType] = useState('');
-  const [connApp, setConnApp] = useState('');
-  const [connWebhook, setConnWebhook] = useState('');
-  const [creds, setCreds] = useState({});
-  const [connMsg, setConnMsg] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -298,8 +402,6 @@ export default function Dashboard({ onLogout }) {
       setConnections(cx.connexions || []);
       if (inf) setInfo(inf);
       if (m) setMeUser(m.username);
-      setConnType((prev) => prev || (c.channels && c.channels[0] ? c.channels[0].channelType : ''));
-      setExChannel((prev) => prev || (c.channels && c.channels[0] ? c.channels[0].channelType : ''));
     } catch (e) { setErr(e.message); }
   }, []);
 
@@ -315,7 +417,7 @@ export default function Dashboard({ onLogout }) {
     try {
       const r = await api.createApplication(appName, appWebhook || null);
       setRevealedKey(r.apiKey); setRevealedFor(r.name || appName); setRevealedSecret(r.webhookSecret || null);
-      setAppName(''); setAppWebhook('');
+      setAppName(''); setAppWebhook(''); setShowNewApp(false);
       refresh();
     } catch (e2) { setErr(e2.message); }
   }
@@ -347,12 +449,11 @@ export default function Dashboard({ onLogout }) {
   }
 
   async function delConn(c) {
-    if (!window.confirm(`Supprimer la connexion « ${c.connectionId} » ? Irréversible.`)) return;
+    if (!window.confirm(`Supprimer le canal « ${c.connectionId} » ? Cela coupe la connexion. Irréversible.`)) return;
     setErr(null);
     try { await api.deleteConnection(c.connectionId); refresh(); } catch (e2) { setErr(e2.message); }
   }
 
-  // Canal par défaut par application (repli /v1/messages quand l'appel ne précise pas de canal).
   const defaultByApp = {};
   for (const a of apps) if (a.default_connection_id) defaultByApp[a.id] = a.default_connection_id;
 
@@ -365,7 +466,7 @@ export default function Dashboard({ onLogout }) {
       refresh();
     } catch (e2) {
       setErr(e2.data && e2.data.error === 'no_application'
-        ? 'Rattachez d’abord cette connexion à une application pour en faire le canal par défaut.'
+        ? 'Rattachez d’abord ce canal à une application pour en faire le canal par défaut.'
         : e2.message);
     }
   }
@@ -374,34 +475,24 @@ export default function Dashboard({ onLogout }) {
   // la session live). applicationId vide => détache la connexion de toute application.
   async function reassignApp(c, applicationId) {
     setErr(null);
-    try {
-      await api.setConnectionApplication(c.connectionId, applicationId || null);
-      refresh();
-    } catch (e2) {
-      setErr(e2.message);
-    }
+    try { await api.setConnectionApplication(c.connectionId, applicationId || null); refresh(); }
+    catch (e2) { setErr(e2.message); }
   }
 
-  async function createConn(e) {
-    e.preventDefault();
-    setErr(null); setConnMsg(null);
-    try {
-      const r = await api.createConnection({
-        connectionId: connId,
-        channelType: connType,
-        applicationId: connApp || null,
-        webhookUrl: connWebhook || null,
-        credentials: buildCreds(connType, creds),
-      });
-      setConnMsg(`Connexion « ${r.connectionId} » créée (statut : ${r.state ? r.state.status : 'n/a'}).`);
-      setConnId(''); setCreds({}); setConnWebhook('');
-      refresh();
-    } catch (e2) {
-      setErr(e2.data && e2.data.error === 'encryption_not_configured'
-        ? 'Chiffrement non configuré (CREDENTIALS_ENCRYPTION_KEY) : impossible de stocker des credentials.'
-        : e2.message);
-    }
+  // Création d'un canal (utilisé par le formulaire par-application). Renvoie la réponse ou lève.
+  async function createConnection(payload) {
+    const r = await api.createConnection(payload);
+    refresh();
+    return r;
   }
+
+  const connsByApp = {};
+  const unassigned = [];
+  for (const c of connections) {
+    if (c.applicationId) (connsByApp[c.applicationId] = connsByApp[c.applicationId] || []).push(c);
+    else unassigned.push(c);
+  }
+  const connectedTotal = connections.filter((x) => ((x.state && x.state.status) || x.status) === 'connected').length;
 
   return (
     <>
@@ -417,15 +508,90 @@ export default function Dashboard({ onLogout }) {
       <main className="dash">
         <div className="summary">
           <span>{apps.length} application{apps.length > 1 ? 's' : ''}</span>
-          <span>{connections.length} connexion{connections.length > 1 ? 's' : ''}</span>
-          <span className="ok-text">{connections.filter((x) => ((x.state && x.state.status) || x.status) === 'connected').length} connectée(s)</span>
+          <span>{connections.length} canal{connections.length > 1 ? 'aux' : ''}</span>
+          <span className="ok-text">{connectedTotal} connecté(s)</span>
         </div>
         {err && <div className="panel error">{err}</div>}
+
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Applications &amp; canaux</h2>
+            <button onClick={() => setShowNewApp((v) => !v)}>{showNewApp ? 'Fermer' : '+ Nouvelle application'}</button>
+          </div>
+          <p className="muted">Chaque application gère ses propres canaux (Telegram, WhatsApp, …). Ajoutez un canal directement sous l'application concernée.</p>
+
+          {showNewApp && (
+            <form className="subform" onSubmit={createApp}>
+              <div className="row" style={{ alignItems: 'end' }}>
+                <label>Nom de l'application<input value={appName} onChange={(e) => setAppName(e.target.value)} placeholder="ex : Deskstudio" /></label>
+                <label>Webhook URL (optionnel)<input value={appWebhook} onChange={(e) => setAppWebhook(e.target.value)} placeholder="https://mon-app/webhooks/rs-connector" /></label>
+                <div style={{ flex: '0 0 auto' }}><button type="submit" disabled={!appName}>Créer</button></div>
+              </div>
+            </form>
+          )}
+
+          {revealedKey && (
+            <div className="notice">
+              Clé API {revealedFor ? `de « ${revealedFor} »` : ''} (copiez-la maintenant, elle ne sera plus affichée) :
+              <code className="key">{revealedKey}</code>
+              <div style={{ marginTop: 8 }}><CopyBtn text={revealedKey} /></div>
+            </div>
+          )}
+          {revealedSecret && (
+            <div className="notice">
+              Secret webhook {revealedFor ? `de « ${revealedFor} »` : ''} — vérifie la signature X-Webhook-Signature :
+              <code className="key">{revealedSecret}</code>
+              <div style={{ marginTop: 8 }}><CopyBtn text={revealedSecret} /></div>
+            </div>
+          )}
+
+          <div className="app-list">
+            {apps.map((a) => (
+              <ApplicationCard
+                key={a.id}
+                app={a}
+                conns={connsByApp[a.id] || []}
+                channels={channels}
+                apps={apps}
+                defaultConnId={defaultByApp[a.id]}
+                onToggleDefault={toggleDefault}
+                onReassign={reassignApp}
+                onDeleteConn={delConn}
+                onCreateConn={createConnection}
+                onRegenerate={regenerate}
+                onRotateSecret={rotateSecret}
+                onDeleteApp={delApp}
+              />
+            ))}
+            {apps.length === 0 && <p className="muted">Aucune application. Cliquez « + Nouvelle application ».</p>}
+          </div>
+        </section>
+
+        {unassigned.length > 0 && (
+          <section className="panel">
+            <h2>Canaux non assignés</h2>
+            <p className="muted">Ces canaux ne sont rattachés à aucune application. Utilisez « Déplacer » pour les assigner.</p>
+            <div className="app-channels">
+              {unassigned.map((c) => (
+                <ChannelCard
+                  key={c.connectionId}
+                  c={c}
+                  onDelete={() => delConn(c)}
+                  canBeDefault={false}
+                  isDefault={false}
+                  onToggleDefault={() => {}}
+                  apps={apps}
+                  onReassign={(appId) => reassignApp(c, appId)}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         {info && (
           <section className="panel">
             <h2>Endpoint d'intégration</h2>
-            <p className="muted">URL de base {info.detected ? '(détectée automatiquement — définissez PUBLIC_BASE_URL en production derrière un proxy)' : '(configurée)'} :</p>
+            <p className="muted">URL de base {info.detected ? '(détectée — définissez PUBLIC_BASE_URL en production)' : '(configurée)'} :</p>
             <code className="key">{info.baseUrl}</code>
             <div className="table-wrap"><table style={{ marginTop: 12 }}>
               <tbody>
@@ -435,104 +601,9 @@ export default function Dashboard({ onLogout }) {
                 <tr><td>Authentification</td><td><code>{info.auth}</code></td></tr>
               </tbody>
             </table></div>
-            <h3 style={{ margin: '16px 0 8px', fontSize: 14 }}>Exemple d'appel — arguments &amp; choix du canal</h3>
-            <div className="row">
-              <label>Canal
-                <select value={exChannel} onChange={(e) => setExChannel(e.target.value)}>
-                  {channels.map((c) => <option key={c.channelType} value={c.channelType}>{label(c.channelType)}</option>)}
-                </select>
-              </label>
-              <label>Destinataire (to)<input value={exTo} onChange={(e) => setExTo(e.target.value)} placeholder="chat_id / numéro / email" /></label>
-              <label>Message (text)<input value={exText} onChange={(e) => setExText(e.target.value)} /></label>
-            </div>
-            <code className="key">{`curl -X POST ${info.endpoints.sendMessage} \\\n  -H "Authorization: Bearer ${revealedKey || '<clé_API>'}" \\\n  -H "Content-Type: application/json" \\\n  -d '${JSON.stringify({ channel: exChannel || '<canal>', to: exTo || '<destinataire>', text: exText || '<message>' })}'`}</code>
-            <p className="muted" style={{ marginTop: 10 }}>Si vous omettez <code className="mono">channel</code> (et <code className="mono">connection_id</code>), l'appel utilise le <b>canal par défaut</b> de l'application — définissable via le bouton « Définir par défaut » sur une connexion ci-dessous.</p>
+            <p className="muted" style={{ marginTop: 10 }}>Si l'appel omet <code className="mono">channel</code> et <code className="mono">connection_id</code>, il utilise le <b>canal par défaut</b> (★) de l'application.</p>
           </section>
         )}
-
-        <section className="panel">
-          <h2>Applications</h2>
-          <div className="table-wrap"><table>
-            <thead><tr><th>Nom</th><th>Clé (préfixe)</th><th>Webhook</th><th>Statut</th><th></th></tr></thead>
-            <tbody>
-              {apps.map((a) => (
-                <tr key={a.id}>
-                  <td>{a.name}</td>
-                  <td><span className="badge">{a.api_key_prefix}…</span></td>
-                  <td className="muted">{a.webhook_url || '—'}</td>
-                  <td>{a.status}</td>
-                  <td style={{ whiteSpace: 'nowrap' }}>
-                    <button className="secondary small" onClick={() => regenerate(a)}>Régénérer clé</button>{' '}
-                    <button className="secondary small" onClick={() => rotateSecret(a)}>Secret webhook</button>{' '}
-                    <button className="secondary small danger" onClick={() => delApp(a)}>Supprimer</button>
-                  </td>
-                </tr>
-              ))}
-              {apps.length === 0 && <tr><td colSpan={5} className="muted">Aucune application</td></tr>}
-            </tbody>
-          </table></div>
-          <form className="row" onSubmit={createApp} style={{ marginTop: 16, alignItems: 'end' }}>
-            <label>Nom de l'application<input value={appName} onChange={(e) => setAppName(e.target.value)} /></label>
-            <label>Webhook URL (optionnel)<input value={appWebhook} onChange={(e) => setAppWebhook(e.target.value)} placeholder="https://mon-app/webhooks/rs-connector" /></label>
-            <div style={{ flex: '0 0 auto' }}><button type="submit" disabled={!appName}>Créer</button></div>
-          </form>
-          {revealedKey && (
-            <div className="notice">
-              Clé API {revealedFor ? `de « ${revealedFor} »` : ''} (copiez-la maintenant, elle ne sera plus affichée) :
-              <code className="key">{revealedKey}</code>
-              <div style={{ marginTop: 8 }}><CopyBtn text={revealedKey} /></div>
-              {info && <div className="muted" style={{ marginTop: 8 }}>Elle est déjà insérée dans l'« Exemple d'appel » du panneau Endpoint ci-dessus.</div>}
-            </div>
-          )}
-          {revealedSecret && (
-            <div className="notice">
-              Secret webhook {revealedFor ? `de « ${revealedFor} »` : ''} — vérifie la signature X-Webhook-Signature des webhooks reçus :
-              <code className="key">{revealedSecret}</code>
-              <div style={{ marginTop: 8 }}><CopyBtn text={revealedSecret} /></div>
-            </div>
-          )}
-        </section>
-
-        <section className="panel">
-          <h2>Connexions</h2>
-          <div className="cards">
-            {connections.map((c) => (
-              <ConnectionCard
-                key={c.connectionId}
-                c={c}
-                onDelete={() => delConn(c)}
-                canBeDefault={!!c.applicationId}
-                isDefault={!!c.applicationId && defaultByApp[c.applicationId] === c.connectionId}
-                onToggleDefault={() => toggleDefault(c)}
-                apps={apps}
-                onReassign={(appId) => reassignApp(c, appId)}
-              />
-            ))}
-            {connections.length === 0 && <p className="muted">Aucune connexion pour le moment.</p>}
-          </div>
-
-          <form onSubmit={createConn} style={{ marginTop: 20 }}>
-            <h3 style={{ margin: '0 0 8px', fontSize: 14 }}>Nouvelle connexion</h3>
-            <div className="row">
-              <label>Identifiant<input value={connId} onChange={(e) => setConnId(e.target.value)} placeholder="ex : boutique-a-telegram" /></label>
-              <label>Canal
-                <select value={connType} onChange={(e) => { setConnType(e.target.value); setCreds({}); }}>
-                  {channels.map((c) => <option key={c.channelType} value={c.channelType}>{label(c.channelType)}</option>)}
-                </select>
-              </label>
-              <label>Application
-                <select value={connApp} onChange={(e) => setConnApp(e.target.value)}>
-                  <option value="">— aucune —</option>
-                  {apps.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}
-                </select>
-              </label>
-            </div>
-            <label>Webhook URL (optionnel)<input value={connWebhook} onChange={(e) => setConnWebhook(e.target.value)} placeholder="hérite de l'application si vide" /></label>
-            <div className="creds-block"><CredentialFields channel={connType} value={creds} onChange={setCreds} /></div>
-            <button type="submit" disabled={!connId || !connType}>Créer la connexion</button>
-          </form>
-          {connMsg && <div className="notice">{connMsg}</div>}
-        </section>
 
         <TwoFactor />
         <ChangePassword />
