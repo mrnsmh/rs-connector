@@ -1,30 +1,36 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600;700;750&display=swap');
 
 :root {
-  /* Thème de la suite deskassist : clair, primaire teal, police Outfit. */
+  /* Identité AiFlowHub — reprise de landings.aiflowhub.online (thème « rsconnect », cyan). */
   --bg: #f4f7fb;
   --bg-elev: #f8fafc;
   --panel: #ffffff;
   --panel-2: #f1f5f9;
-  --border: #dbe3ef;
+  --border: #dce2ea;
   --border-strong: #cbd5e1;
-  --text: #172033;
+  --text: #182135;
   --muted: #64748b;
-  --accent: #0f766e;
-  --accent-hover: #0d6660;
+  --accent: #0891b2;
+  --accent-2: #06b6d4;
+  --accent-hover: #0e7490;
   --accent-ink: #ffffff;
+  --grad: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+  --halo: rgba(8, 145, 178, .16);
+  --accent-soft: #cffafe;
+  --accent-border: #a5f3fc;
   --ok: #15803d;
   --warn: #b45309;
   --danger: #dc2626;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --shadow: 0 1px 2px rgba(16, 30, 54, .04), 0 6px 18px -6px rgba(16, 30, 54, .12);
-  --ring: 0 0 0 3px rgba(15, 118, 110, .14);
+  --radius: 14px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(24, 33, 53, .05), 0 6px 18px rgba(24, 33, 53, .06);
+  --shadow-lg: 0 20px 50px rgba(24, 33, 53, .12);
+  --ring: 0 0 0 3px rgba(8, 145, 178, .16);
 }
 * { box-sizing: border-box; }
 body {
   margin: 0;
-  font-family: 'Outfit', system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   font-size: 14px;
   line-height: 1.5;
   background: var(--bg);
@@ -56,12 +62,12 @@ input::placeholder { color: #94a3b8; }
 textarea { min-height: 90px; resize: vertical; }
 
 button {
-  margin-top: 18px; width: 100%; padding: 11px 14px; background: var(--accent); color: var(--accent-ink);
+  margin-top: 18px; width: 100%; padding: 11px 14px; background: var(--grad); color: var(--accent-ink);
   border: 1px solid transparent; border-radius: var(--radius-sm); font-weight: 600; font-size: 14px;
-  cursor: pointer; transition: background .15s, border-color .15s, color .15s, opacity .15s;
+  cursor: pointer; box-shadow: 0 6px 16px var(--halo); transition: filter .15s, transform .15s, box-shadow .15s, opacity .15s;
 }
-button:hover:not(:disabled) { background: var(--accent-hover); }
-button.secondary { background: #ffffff; color: var(--text); border-color: var(--border-strong); }
+button:hover:not(:disabled) { filter: brightness(1.05); transform: translateY(-1px); }
+button.secondary { background: #ffffff; color: var(--text); border-color: var(--border-strong); box-shadow: none; }
 button.secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
 button:disabled { opacity: .5; cursor: default; }
 
@@ -71,8 +77,8 @@ button:disabled { opacity: .5; cursor: default; }
 /* ---------- Structure ---------- */
 header.topbar {
   display: flex; align-items: center; gap: 12px; padding: 13px 24px;
-  border-bottom: 1px solid var(--border); background: linear-gradient(180deg, #ffffff, var(--bg-elev));
-  position: sticky; top: 0; z-index: 5;
+  border-bottom: 1px solid var(--border); background: rgba(255, 255, 255, .85); backdrop-filter: saturate(160%) blur(12px);
+  position: sticky; top: 0; z-index: 20;
 }
 .brand { display: flex; align-items: center; gap: 11px; }
 .brand .mark { display: inline-flex; }
