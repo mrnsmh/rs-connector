@@ -83,6 +83,7 @@ export const userApi = {
   login: (email, password) => userRequest('/login', { method: 'POST', body: { email, password } }),
   logout: () => userRequest('/logout', { method: 'POST' }),
   me: () => userRequest('/me'),
+  resendVerification: (email) => userRequest('/resend-verification', { method: 'POST', body: { email } }),
   listApplications: () => userRequest('/applications'),
   createApplication: (name, webhookUrl) => userRequest('/applications', { method: 'POST', body: { name, webhookUrl } }),
   regenerateKey: (id) => userRequest(`/applications/${encodeURIComponent(id)}/regenerate-key`, { method: 'POST', body: {} }),

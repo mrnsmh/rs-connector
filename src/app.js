@@ -21,7 +21,7 @@ const path = require('node:path');
  * @param {object} [options.db] - Accès DB (Task 3), optionnel selon les endpoints appelés.
  */
 function createApp(options = {}) {
-  const { connectionManager, db, rateLimiter, whatsappCloud, admin, vault, publicBaseUrl = '', workerToken = process.env.WORKER_TOKEN } = options;
+  const { connectionManager, db, rateLimiter, whatsappCloud, admin, vault, publicBaseUrl = '', workerToken = process.env.WORKER_TOKEN, systemMailer = null } = options;
   // Anti-abus : limite de requetes /v1/messages par application et par minute (0 = desactive).
   const v1RateLimitPerMin = options.v1RateLimitPerMin !== undefined
     ? options.v1RateLimitPerMin
@@ -56,7 +56,7 @@ function createApp(options = {}) {
 
   // Espace SELF-SERVICE utilisateur : routes /u (inscription/connexion/session + gestion de
   // SES applications et canaux, isolées par utilisateur). Cookie de session dédié (rsconnector_user).
-  app.use('/u', createUserRouter({ db, vault, connectionManager, adapterRegistry, user: { cookieSecure: !admin || admin.cookieSecure !== false } }));
+  app.use('/u', createUserRouter({ db, vault, connectionManager, adapterRegistry, mailer: systemMailer, publicBaseUrl, user: { cookieSecure: !admin || admin.cookieSecure !== false } }));
 
   function requireConnectionManager(req, res) {
     if (!connectionManager) {

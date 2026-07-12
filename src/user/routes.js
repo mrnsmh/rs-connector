@@ -19,7 +19,7 @@ const MAX_FAILED_ATTEMPTS = 10;
 const LOCK_MINUTES = 15;
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 
-function createUserRouter({ db, vault = null, connectionManager = null, adapterRegistry = null, user = {} } = {}) {
+function createUserRouter({ db, vault = null, connectionManager = null, adapterRegistry = null, mailer = null, publicBaseUrl = '', user = {} } = {}) {
   const router = express.Router();
   const sessionTtlSeconds = user.sessionTtlSeconds || 30 * 24 * 3600; // 30 jours
   const cookieSecure = user.cookieSecure !== false;
@@ -28,6 +28,8 @@ function createUserRouter({ db, vault = null, connectionManager = null, adapterR
   const setSession = (res, token) => res.setHeader('Set-Cookie', buildSessionCookie(token, { maxAgeSeconds: sessionTtlSeconds, secure: cookieSecure, cookieName: USER_COOKIE }));
   const norm = (e) => String(e || '').trim().toLowerCase();
   const throttleKey = (email) => `u:${email}`;
+  const baseUrl = String(publicBaseUrl || '').replace(/\/+$/, '');
+  const verifyLink = (token) => `${baseUrl}/u/verify?token=${encodeURIComponent(token)}`;
 
   async function openSession(res, userId) {
     const token = newToken();
@@ -46,7 +48,19 @@ function createUserRouter({ db, vault = null, connectionManager = null, adapterR
     if (String(password).length < 8) return res.status(400).json({ error: 'weak_password', message: 'Mot de passe : 8 caractères minimum' });
     try {
       if (await db.getUserByEmail(email)) return res.status(409).json({ error: 'email_taken', message: 'Un compte existe déjà avec cet email' });
-      const u = await db.createUser({ email, passwordHash: hashPassword(password) });
+      const passwordHash = hashPassword(password);
+      if (mailer) {
+        // SMTP configuré → compte NON vérifié + email de confirmation. Aucune session tant que
+        // l'email n'est pas confirmé (le login refusera un compte non vérifié).
+        const token = newToken();
+        const expires = new Date(Date.now() + 24 * 3600 * 1000);
+        const u = await db.createUser({ email, passwordHash, emailVerified: false, verificationToken: token, verificationExpires: expires });
+        try { await mailer.sendVerification(email, verifyLink(token)); }
+        catch (mailErr) { logger.error({ err: mailErr.message }, 'Envoi email de vérification échoué'); }
+        return res.status(201).json({ needsVerification: true, email: u.email });
+      }
+      // Pas de SMTP → auto-vérifié + session immédiate (dégradation gracieuse, ne bloque jamais).
+      const u = await db.createUser({ email, passwordHash, emailVerified: true });
       const csrfToken = await openSession(res, u.id);
       return res.status(201).json({ email: u.email, csrfToken });
     } catch (err) {
@@ -75,6 +89,7 @@ function createUserRouter({ db, vault = null, connectionManager = null, adapterR
         return res.status(401).json({ error: 'invalid_credentials' });
       }
       await db.resetLoginAttempts(throttleKey(email));
+      if (!u.email_verified) return res.status(403).json({ error: 'email_not_verified', message: 'Confirmez votre email avant de vous connecter.' });
       const csrfToken = await openSession(res, u.id);
       return res.status(200).json({ email: u.email, csrfToken });
     } catch (err) {
@@ -93,6 +108,40 @@ function createUserRouter({ db, vault = null, connectionManager = null, adapterR
   });
 
   router.get('/me', requireUser, (req, res) => res.status(200).json({ email: req.user.email, csrfToken: req.userSession.csrf_token }));
+
+  // Vérification d'email : lien cliqué depuis l'email (GET, non authentifié) → marque vérifié
+  // puis redirige vers l'accueil avec un statut. Jetons expirables (24 h), à usage unique.
+  router.get('/verify', async (req, res) => {
+    const token = req.query && req.query.token;
+    if (!token) return res.redirect(`${baseUrl}/?verify=missing`);
+    try {
+      const u = await db.getUserByVerificationToken(String(token));
+      if (!u || (u.verification_expires && new Date(u.verification_expires).getTime() < Date.now())) {
+        return res.redirect(`${baseUrl}/?verify=invalid`);
+      }
+      await db.markUserVerified(u.id);
+      return res.redirect(`${baseUrl}/?verified=1`);
+    } catch (err) {
+      logger.error({ err: err.message }, 'Erreur vérification email');
+      return res.redirect(`${baseUrl}/?verify=error`);
+    }
+  });
+
+  // Renvoi de l'email de vérification. Réponse identique que le compte existe ou non
+  // (pas d'énumération d'emails).
+  router.post('/resend-verification', async (req, res) => {
+    const email = norm(req.body && req.body.email);
+    if (!EMAIL_RE.test(email)) return res.status(400).json({ error: 'invalid_email' });
+    try {
+      const u = await db.getUserByEmail(email);
+      if (u && !u.email_verified && mailer) {
+        const token = newToken();
+        await db.setVerificationToken(u.id, token, new Date(Date.now() + 24 * 3600 * 1000));
+        try { await mailer.sendVerification(email, verifyLink(token)); } catch (e) { logger.error({ err: e.message }, 'Renvoi vérification échoué'); }
+      }
+      return res.status(200).json({ ok: true });
+    } catch (err) { return res.status(500).json({ error: 'internal' }); }
+  });
 
   // ==================== Applications (scopées à l'utilisateur) ====================
   router.get('/applications', requireUser, async (req, res) => {

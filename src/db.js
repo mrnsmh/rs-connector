@@ -365,12 +365,25 @@ function createDb(pool) {
   }
 
   // ---- Comptes UTILISATEURS self-service + applications scopées par utilisateur. ----
-  async function createUser({ email, passwordHash }) {
+  async function createUser({ email, passwordHash, emailVerified = true, verificationToken = null, verificationExpires = null }) {
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash) VALUES ($1, $2) RETURNING *',
-      [email, passwordHash],
+      'INSERT INTO users (email, password_hash, email_verified, verification_token, verification_expires) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [email, passwordHash, emailVerified, verificationToken, verificationExpires],
     );
     return result.rows[0];
+  }
+
+  async function getUserByVerificationToken(token) {
+    const result = await pool.query('SELECT * FROM users WHERE verification_token = $1', [token]);
+    return result.rows[0] || null;
+  }
+
+  async function markUserVerified(id) {
+    await pool.query('UPDATE users SET email_verified = true, verification_token = NULL, verification_expires = NULL, updated_at = now() WHERE id = $1', [id]);
+  }
+
+  async function setVerificationToken(id, token, expires) {
+    await pool.query('UPDATE users SET verification_token = $2, verification_expires = $3, updated_at = now() WHERE id = $1', [id, token, expires]);
   }
 
   async function getUserByEmail(email) {
@@ -473,6 +486,9 @@ function createDb(pool) {
     createUser,
     getUserByEmail,
     getUserById,
+    getUserByVerificationToken,
+    markUserVerified,
+    setVerificationToken,
     updateUserPassword,
     createUserSession,
     getUserSession,

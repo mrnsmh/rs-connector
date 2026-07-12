@@ -175,3 +175,10 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
 -- (et, par cascade existante, leurs connexions).
 ALTER TABLE applications ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
 CREATE INDEX IF NOT EXISTS idx_applications_user ON applications(user_id);
+
+-- Vérification d'email (comme desklink). Défaut `true` : n'impacte pas les comptes existants
+-- ni le mode sans SMTP ; les nouveaux comptes créés avec SMTP configuré sont insérés à `false`.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_expires TIMESTAMPTZ;
+CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token);
