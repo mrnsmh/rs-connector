@@ -8,6 +8,7 @@ const { createApiKeyAuth } = require('./auth-apikey');
 const { verifyMetaSignature, checkVerification, extractInboundEvents } = require('./whatsapp-cloud-webhook');
 const { createAdminRouter } = require('./admin/routes');
 const { createUserRouter } = require('./user/routes');
+const { createRequireAdmin } = require('./admin/auth-admin');
 const adapterRegistry = require('./adapters');
 const path = require('node:path');
 
@@ -58,6 +59,13 @@ function createApp(options = {}) {
   // SES applications et canaux, isolées par utilisateur). Cookie de session dédié (rsconnector_user).
   app.use('/u', createUserRouter({ db, vault, connectionManager, adapterRegistry, mailer: systemMailer, publicBaseUrl, user: { cookieSecure: !admin || admin.cookieSecure !== false } }));
 
+  // Sécurité : les endpoints de diagnostic/gestion GLOBAUX ci-dessous (héritage Tasks 2–6)
+  // étaient exposés SANS authentification alors que nginx route « / » vers ce service. Ils
+  // sont désormais réservés à une session admin authentifiée (OTP vérifié + CSRF sur les
+  // mutations), en réutilisant la MÊME garde que le back-office /admin. Les usages scopés
+  // par utilisateur/application restent sur /u et /v1 (inchangés).
+  const requireAdmin = createRequireAdmin(db);
+
   function requireConnectionManager(req, res) {
     if (!connectionManager) {
       res.status(503).json({ error: 'Gestionnaire de session non initialisé' });
@@ -67,7 +75,7 @@ function createApp(options = {}) {
   }
 
   // Liste toutes les connections actives (toutes connexions) — utile pour un tableau de bord.
-  app.get('/connections', (req, res) => {
+  app.get('/connections', requireAdmin, (req, res) => {
     if (!requireConnectionManager(req, res)) return;
     res.status(200).json({ connexions: connectionManager.list(), states: connectionManager.getAllStates() });
   });
@@ -77,7 +85,7 @@ function createApp(options = {}) {
   // Task 4 : la persistance DB de CHAQUE transition est désormais gérée automatiquement
   // par le callback onConnectionStateChange (voir connection-manager-factory.js), plus
   // besoin de persister manuellement ici l'état au moment de la création.
-  app.get('/connections/:connectionId/qr', async (req, res) => {
+  app.get('/connections/:connectionId/qr', requireAdmin, async (req, res) => {
     if (!requireConnectionManager(req, res)) return;
     try {
       const { connectionId } = req.params;
@@ -90,7 +98,7 @@ function createApp(options = {}) {
     }
   });
 
-  app.get('/connections/:connectionId', (req, res) => {
+  app.get('/connections/:connectionId', requireAdmin, (req, res) => {
     if (!requireConnectionManager(req, res)) return;
     const session = connectionManager.get(req.params.connectionId);
     if (!session) return res.status(404).json({ error: 'Session inconnue pour cette connexion' });
@@ -100,7 +108,7 @@ function createApp(options = {}) {
   // Task 6 : configuration de l'URL webhook propre à une connexion (destinataire des
   // événements message.received / message.status_changed / session.connected/disconnected).
   // Si non configurée, le dispatcher retombe sur DEFAULT_WEBHOOK_URL (voir index.js).
-  app.patch('/connections/:connectionId/webhook', async (req, res) => {
+  app.patch('/connections/:connectionId/webhook', requireAdmin, async (req, res) => {
     if (!db) {
       return res.status(503).json({ error: 'Base de données non initialisée' });
     }
@@ -123,7 +131,7 @@ function createApp(options = {}) {
 
   // Task 6 : historique des événements webhook (outbox) d'une connexion — utile pour
   // diagnostiquer un webhook resté `pending` ou passé en `failed_permanent`.
-  app.get('/connections/:connectionId/webhooks', async (req, res) => {
+  app.get('/connections/:connectionId/webhooks', requireAdmin, async (req, res) => {
     if (!db) {
       return res.status(503).json({ error: 'Base de données non initialisée' });
     }
@@ -141,7 +149,7 @@ function createApp(options = {}) {
   // (sent -> delivered -> read, ou sent -> failed -> retry -> sent...).
   // Correctif post-relecture critique : inclut aussi les transitions rejetées
   // (anomalies) pour ce message, auparavant uniquement disponibles dans les logs.
-  app.get('/messages/:messageId/status-history', async (req, res) => {
+  app.get('/messages/:messageId/status-history', requireAdmin, async (req, res) => {
     if (!db) {
       return res.status(503).json({ error: 'Base de données non initialisée' });
     }
@@ -160,7 +168,7 @@ function createApp(options = {}) {
   // Correctif post-relecture critique : vue globale des anomalies de statut les plus
   // récentes (toutes connexions), pour diagnostiquer sans devoir chercher un message_id
   // précis — utile pour détecter un pattern (ex. un type de statut Baileys mal géré).
-  app.get('/anomalies', async (req, res) => {
+  app.get('/anomalies', requireAdmin, async (req, res) => {
     if (!db) {
       return res.status(503).json({ error: 'Base de données non initialisée' });
     }
