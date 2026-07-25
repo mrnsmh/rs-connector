@@ -27,6 +27,7 @@ urlpatterns = [
 
     # ── Admin API (frontend React appelle /admin/*) ──
     path('admin/login', admin_api.admin_login),
+    path('admin/google', admin_api.google_login),
     path('admin/login/otp', admin_api.admin_otp),
     path('admin/logout', admin_api.admin_logout),
     path('admin/me', admin_api.admin_me),

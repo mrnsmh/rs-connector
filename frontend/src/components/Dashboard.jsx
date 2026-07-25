@@ -610,13 +610,13 @@ export default function Dashboard({ onLogout }) {
           <section className="panel">
             <h2>Endpoint d'intégration</h2>
             <p className="muted">URL de base {info.detected ? '(détectée — définissez PUBLIC_BASE_URL en production)' : '(configurée)'} :</p>
-            <code className="key">{info.baseUrl}</code>
+            <code className="key">{info.baseUrl || 'https://rsconnect.aiflowhub.online'}</code>
             <div className="table-wrap"><table style={{ marginTop: 12 }}>
               <tbody>
-                <tr><td>Envoi de message</td><td><code>POST {info.endpoints.sendMessage}</code></td></tr>
-                <tr><td>Lister les connexions</td><td><code>GET {info.endpoints.listConnections}</code></td></tr>
-                <tr><td>Webhook WhatsApp Cloud</td><td><code>{info.endpoints.whatsappCloudWebhook}</code></td></tr>
-                <tr><td>Authentification</td><td><code>{info.auth}</code></td></tr>
+              <tr><td>Envoi de message</td><td><code>POST {(info.endpoints && info.endpoints.sendMessage) || '/v1/messages'}</code></td></tr>
+              <tr><td>Lister les connexions</td><td><code>GET {(info.endpoints && info.endpoints.listConnections) || '/v1/connections'}</code></td></tr>
+              <tr><td>Webhook WhatsApp Cloud</td><td><code>{(info.endpoints && info.endpoints.whatsappCloudWebhook) || '/v1/webhooks/whatsapp-cloud'}</code></td></tr>
+              <tr><td>Authentification</td><td><code>{info.auth || 'Bearer token'}</code></td></tr>
               </tbody>
             </table></div>
             <p className="muted" style={{ marginTop: 10 }}>Si l'appel omet <code className="mono">channel</code> et <code className="mono">connection_id</code>, il utilise le <b>canal par défaut</b> (★) de l'application.</p>

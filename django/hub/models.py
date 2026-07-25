@@ -129,3 +129,17 @@ class Connection(TimeStampedModel):
     def baileys_session_dir(self):
         """Chemin d'auth Baileys ISOLE par profil (exigence : une session Baileys par profil)."""
         return f"{self.profile_id}/{self.connection_id}"
+
+
+class UserProfile(models.Model):
+    """Profile Google OAuth lié à un utilisateur Django."""
+    user = models.OneToOneField(
+        'auth.User',
+        on_delete=models.CASCADE,
+        related_name='google_profile'
+    )
+    google_id = models.CharField(max_length=64, unique=True, blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Google profile for {self.user.username}"

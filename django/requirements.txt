@@ -4,3 +4,5 @@ psycopg[binary]>=3.1
 gunicorn>=22.0
 whitenoise>=6.6
 cryptography>=42.0
+google-auth==2.56.2
+requests>=2.31.0
