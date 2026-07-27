@@ -27,6 +27,14 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:3019:8000"
+    networks:
+      - default
+      - apps-bridge
 
 volumes:
   pgdata:
+
+networks:
+  apps-bridge:
+    external: true
+    name: rs-connector-apps

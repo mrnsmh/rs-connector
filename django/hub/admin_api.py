@@ -322,8 +322,8 @@ def admin_connections_qr(request, conn_id):
     except Connection.DoesNotExist:
         return _json_error("Connection not found", 404)
 
-    # Placeholder — le QR sera généré par le worker Baileys
-    return JsonResponse({"qr": "pending", "status": conn.status})
+    # TODO: wire to worker Baileys via worker_client
+    return _json_error("QR code generation not yet wired to worker", 501)
 
 
 @require_POST
@@ -338,8 +338,8 @@ def admin_connections_send(request, conn_id):
     if not to or not text:
         return _json_error("to and text required")
 
-    # Placeholder — l'envoi sera fait par le worker
-    return JsonResponse({"ok": True, "message": "Test message queued", "result": {"messageId": "test-queued"}})
+    # TODO: wire to worker Baileys via worker_client
+    return _json_error("Message sending not yet wired to worker", 501)
 
 
 @require_POST
