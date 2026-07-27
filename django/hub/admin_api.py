@@ -49,6 +49,20 @@ def admin_login(request):
     if user is None:
         return _json_error("Invalid credentials", 401)
 
+    # Vérifier si TOTP est activé — si oui, ne pas logger tout de suite
+    from hub.models import UserProfile
+    try:
+        profile = user.google_profile
+        if profile.totp_enabled and profile.totp_secret:
+            # Stocker l'user ID en session pour l'étape OTP
+            request.session['_totp_pending_user'] = user.id
+            return JsonResponse({
+                "otpRequired": True,
+                "otpVerified": False,
+            })
+    except UserProfile.DoesNotExist:
+        pass
+
     login(request, user)
     return JsonResponse({
         "csrfToken": get_token(request),
@@ -60,7 +74,42 @@ def admin_login(request):
 @csrf_exempt
 @require_POST
 def admin_otp(request):
-    """POST /admin/login/otp — OTP verification (pas implémenté, toujours OK)."""
+    """POST /admin/login/otp — OTP verification (TOTP)."""
+    import pyotp
+    from hub.models import UserProfile
+
+    data = _parse_body(request)
+    code = data.get("code", "").strip()
+
+    if not code:
+        return _json_error("Code OTP required", 400)
+
+    pending_user_id = request.session.get('_totp_pending_user')
+    if not pending_user_id:
+        return _json_error("No pending OTP verification", 400)
+
+    from django.contrib.auth import get_user_model
+    User = get_user_model()
+    try:
+        user = User.objects.get(id=pending_user_id)
+    except User.DoesNotExist:
+        return _json_error("User not found", 404)
+
+    try:
+        profile = user.google_profile
+    except UserProfile.DoesNotExist:
+        return _json_error("TOTP not configured", 400)
+
+    if not profile.totp_enabled or not profile.totp_secret:
+        return _json_error("TOTP not enabled", 400)
+
+    totp = pyotp.TOTP(profile.totp_secret)
+    if not totp.verify(code, valid_window=1):
+        return _json_error("Invalid OTP code", 401)
+
+    # OTP valide — logger l'utilisateur
+    del request.session['_totp_pending_user']
+    login(request, user)
     return JsonResponse({
         "csrfToken": get_token(request),
         "otpVerified": True,
@@ -449,26 +498,63 @@ def admin_info(request):
     })
 
 
-# ── TOTP (placeholder) ───────────────────────────────────────────────────────
+# ── TOTP (2FA) ───────────────────────────────────────────────────────────────
 
 @require_POST
 def admin_totp_setup(request):
-    """POST /admin/totp/setup — Setup TOTP (placeholder)."""
+    """POST /admin/totp/setup — Generate TOTP secret and return QR URI.
+
+    Le secret est stocké sur le UserProfile mais totp_enabled reste False
+    jusqu'à ce que l'utilisateur vérifie un code via /admin/totp/enable.
+    """
     if not request.user.is_authenticated:
         return _json_error("Not authenticated", 401)
 
-    import base64, urllib.parse
-    secret = secrets.token_base32(20).decode() if hasattr(secrets, 'token_base32') else secrets.token_hex(20).upper()[:32]
-    otpauth_uri = f"otpauth://totp/RS-Connector:{urllib.parse.quote(request.user.email or request.user.username)}?secret={secret}&issuer=RS-Connector&algorithm=SHA1&digits=6&period=30"
+    import pyotp, urllib.parse
+    from hub.models import UserProfile
+
+    secret = pyotp.random_base32()
+    profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    profile.totp_secret = secret
+    profile.totp_enabled = False  # Sera activé après vérification
+    profile.save(update_fields=["totp_secret", "totp_enabled"])
+
+    otpauth_uri = pyotp.totp.TOTP(secret).provisioning_uri(
+        name=request.user.email or request.user.username,
+        issuer_name="RS-Connector"
+    )
     return JsonResponse({"secret": secret, "otpauthUri": otpauth_uri, "qrUrl": otpauth_uri})
 
 
 @require_POST
 def admin_totp_enable(request):
-    """POST /admin/totp/enable — Activer TOTP (placeholder)."""
+    """POST /admin/totp/enable — Activer TOTP après vérification du code."""
     if not request.user.is_authenticated:
         return _json_error("Not authenticated", 401)
-    return JsonResponse({"ok": True})
+
+    import pyotp
+    from hub.models import UserProfile
+
+    data = _parse_body(request)
+    code = data.get("code", "").strip()
+    if not code:
+        return _json_error("Code TOTP required", 400)
+
+    try:
+        profile = request.user.google_profile
+    except UserProfile.DoesNotExist:
+        return _json_error("TOTP not set up. Call /admin/totp/setup first.", 400)
+
+    if not profile.totp_secret:
+        return _json_error("TOTP not set up. Call /admin/totp/setup first.", 400)
+
+    totp = pyotp.TOTP(profile.totp_secret)
+    if not totp.verify(code, valid_window=1):
+        return _json_error("Invalid TOTP code", 400)
+
+    profile.totp_enabled = True
+    profile.save(update_fields=["totp_enabled"])
+    return JsonResponse({"ok": True, "message": "TOTP enabled"})
 
 
 @require_POST

@@ -6,3 +6,4 @@ whitenoise>=6.6
 cryptography>=42.0
 google-auth==2.56.2
 requests>=2.31.0
+pyotp>=2.9

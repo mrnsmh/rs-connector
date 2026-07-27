@@ -132,13 +132,15 @@ class Connection(TimeStampedModel):
 
 
 class UserProfile(models.Model):
-    """Profile Google OAuth lié à un utilisateur Django."""
+    """Profile Google OAuth + TOTP lié à un utilisateur Django."""
     user = models.OneToOneField(
         'auth.User',
         on_delete=models.CASCADE,
         related_name='google_profile'
     )
     google_id = models.CharField(max_length=64, unique=True, blank=True, null=True)
+    totp_secret = models.CharField(max_length=64, blank=True, default='')
+    totp_enabled = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
